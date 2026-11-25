@@ -1,0 +1,23 @@
+{
+  "name": "confesse-moi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Confesse-moi — une machine à écrire intime, hors ligne.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "assets": "node scripts/generate-assets.mjs"
+  },
+  "dependencies": {
+    "@fontsource/special-elite": "^5.2.8",
+    "idb": "^8.0.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.1.0"
+  }
+}
