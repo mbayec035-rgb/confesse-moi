@@ -78,6 +78,15 @@ export function caretCell(lines, caretIndex) {
   return { lineIndex, column }
 }
 
+// Inverse de caretCell : place le curseur sur une cellule visible.
+export function caretForCell(lines, lineIndex, column) {
+  if (!lines.length) return 0
+  const index = Math.max(0, Math.min(lineIndex, lines.length - 1))
+  const line = lines[index]
+  const wanted = Math.max(0, Math.min(column, line.text.length))
+  return Math.min(line.end, line.start + wanted)
+}
+
 export function formatDate(timestamp) {
   if (!timestamp) return ''
   return new Intl.DateTimeFormat('fr-FR', {

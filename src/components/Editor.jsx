@@ -8,10 +8,15 @@ import LampSheet from './LampSheet.jsx'
 import NotesSheet from './NotesSheet.jsx'
 import ShareSheet from './ShareSheet.jsx'
 import { playSound, unlockAudio } from '../sounds.js'
-import { caretCell, layoutText, WRITER_COLS } from '../text.js'
+import { caretCell, caretForCell, layoutText, WRITER_COLS } from '../text.js'
 import { shareImage, shareText } from '../share.js'
 
-const HISTORY_LINES = 8
+const HISTORY_ABOVE = 8
+const LINES_BELOW = 4
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
 
 export default function Editor({
   note,
@@ -42,24 +47,32 @@ export default function Editor({
   const previous = useRef({ lineIndex: 0, length: note.text.length })
 
   const L = viewport.width
-  const lampOn = settings.mode === 'nuit'
+  // La veilleuse est allumée dès l’ouverture de l’écriture : sans elle,
+  // l’encre noire sur papier sombre serait illisible.
+  const [veilleuseOn, setVeilleuseOn] = useState(true)
+  const lampOn = veilleuseOn
 
-  const view = useMemo(() => {
-    const layout = layoutText(note.text, WRITER_COLS)
-    const cell = caretCell(layout, caret)
-    const first = Math.max(0, cell.lineIndex - HISTORY_LINES)
-    return {
-      cell,
-      current: layout[cell.lineIndex]?.text ?? '',
-      history: layout.slice(first, cell.lineIndex).map((line) => line.text),
+  const layout = useMemo(() => layoutText(note.text, WRITER_COLS), [note.text])
+  const cell = useMemo(() => caretCell(layout, caret), [layout, caret])
+  const first = Math.max(0, cell.lineIndex - HISTORY_ABOVE)
+  const last = Math.min(layout.length - 1, cell.lineIndex + LINES_BELOW)
+
+  const contextRaw = useMemo(() => {
+    const result = []
+    for (let index = first; index <= last; index += 1) {
+      if (index !== cell.lineIndex) result.push({ index, text: layout[index].text })
     }
-  }, [note.text, caret])
+    return result
+  }, [layout, first, last, cell.lineIndex])
 
-  // Tant que la frappe reste sur la même ligne, le tableau des lignes passées
-  // garde la même référence : PaperScene/HistoryLines ne re-rendent pas.
-  const historyKey = `${view.cell.lineIndex}|${view.history.join('\u0000')}`
+  // Tant que la ligne visée reste la même, le tableau des lignes de contexte
+  // garde la même référence : PaperScene ne re-rend pas ces nœuds.
+  const contextKey = `${cell.lineIndex}|${contextRaw.map((line) => `${line.index}:${line.text}`).join('\u0000')}`
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const historyLines = useMemo(() => view.history, [historyKey])
+  const contextLines = useMemo(() => contextRaw, [contextKey])
+
+  const activeText = layout[cell.lineIndex]?.text ?? ''
+  const activeLength = activeText.length
 
   // Hauteur visible = visualViewport. Le clavier qui s’ouvre recalcule H et
   // toute la scène (en % de H) reste au-dessus de lui.
@@ -84,6 +97,8 @@ export default function Editor({
     window.visualViewport?.addEventListener('scroll', update)
     return () => {
       window.removeEventListener('resize', update)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update)
       window.visualViewport?.removeEventListener('resize', update)
       window.visualViewport?.removeEventListener('scroll', update)
       document.documentElement.style.removeProperty('--H')
@@ -94,54 +109,119 @@ export default function Editor({
   }, [])
 
   useEffect(() => {
+    const nextLayout = layoutText(note.text, WRITER_COLS)
     setCaret(note.text.length)
-    previous.current = { lineIndex: 0, length: note.text.length }
+    previous.current = {
+      lineIndex: caretCell(nextLayout, note.text.length).lineIndex,
+      length: note.text.length,
+    }
     textareaRef.current?.focus()
   }, [note.id])
 
   useEffect(() => () => window.clearTimeout(typingTimer.current), [])
 
-  // Seule la ligne courante est touchée dans le DOM à chaque frappe.
+  // Seule la ligne visée est touchée dans le DOM ; le curseur est un calque
+  // séparé déplacé par transform, sans réécrire la ligne.
   useLayoutEffect(() => {
-    sceneRef.current?.updateCurrentLine(view.current, view.cell.lineIndex, note.id)
-  }, [view.current, view.cell.lineIndex, note.id])
+    sceneRef.current?.updateCurrentLine(activeText, cell.lineIndex, note.id, cell.column)
+  }, [activeText, cell.lineIndex, cell.column, note.id])
+
+  // Le textarea reste le clavier : sa sélection suit toujours le T.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    if (textarea.value !== note.text) textarea.value = note.text
+    textarea.setSelectionRange(caret, caret)
+  }, [caret, note.text])
+
+  function commit(nextText, nextCaret) {
+    const safeCaret = clamp(nextCaret, 0, nextText.length)
+    const nextCell = caretCell(layoutText(nextText, WRITER_COLS), safeCaret)
+    if (nextCell.lineIndex !== previous.current.lineIndex) sceneRef.current?.beginNewLine()
+    previous.current = { lineIndex: nextCell.lineIndex, length: nextText.length }
+    setCaret(safeCaret)
+    onChange(nextText)
+  }
+
+  function moveCaret(nextCaret) {
+    const safeCaret = clamp(nextCaret, 0, note.text.length)
+    const nextCell = caretCell(layout, safeCaret)
+    if (nextCell.lineIndex !== cell.lineIndex) {
+      sceneRef.current?.scrollLines(Math.sign(nextCell.lineIndex - cell.lineIndex))
+    }
+    previous.current = { lineIndex: nextCell.lineIndex, length: note.text.length }
+    setCaret(safeCaret)
+  }
+
+  function selectCell(lineIndex, column) {
+    const safeLine = clamp(lineIndex, 0, layout.length - 1)
+    moveCaret(caretForCell(layout, safeLine, column))
+  }
+
+  function keepFocus() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    if (document.activeElement !== textarea) textarea.focus({ preventScroll: true })
+    textarea.setSelectionRange(caret, caret)
+  }
 
   function handleKeyDown(event) {
     unlockAudio()
+    if (event.isComposing || event.key === 'Process') return
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+
     if (event.key === 'Backspace') {
+      event.preventDefault()
       playSound('backspace', settings)
+      if (caret > 0) commit(note.text.slice(0, caret - 1) + note.text.slice(caret), caret - 1)
       return
     }
-    if (event.key === 'Enter') return // aucun son : handleChange se contente de changer de ligne
+
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commit(`${note.text.slice(0, caret)}\n${note.text.slice(caret)}`, caret + 1)
+      return
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      moveCaret(caret + (event.key === 'ArrowLeft' ? -1 : 1))
+      return
+    }
+
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      const target = clamp(cell.lineIndex + (event.key === 'ArrowUp' ? -1 : 1), 0, layout.length - 1)
+      moveCaret(caretForCell(layout, target, cell.column))
+      return
+    }
+
     if (event.key.length !== 1) return
+    event.preventDefault()
     playSound(event.key === ' ' ? 'space' : 'key', settings)
     sceneRef.current?.flash()
     sceneRef.current?.setTyping(true)
     window.clearTimeout(typingTimer.current)
     typingTimer.current = window.setTimeout(() => sceneRef.current?.setTyping(false), 110)
+
+    const overwriting = settings.typingMode !== 'inserer'
+      && caret < note.text.length
+      && note.text[caret] !== '\n'
+    const nextText = overwriting
+      ? note.text.slice(0, caret) + event.key + note.text.slice(caret + 1)
+      : note.text.slice(0, caret) + event.key + note.text.slice(caret)
+    commit(nextText, caret + 1)
   }
 
+  // Entrée éventuelle d’un clavier mobile / IME qui n’a pas envoyé de key.
   function handleChange(event) {
-    const value = event.target.value
-    const nextCaret = event.target.selectionStart ?? value.length
-    const cell = caretCell(layoutText(value, WRITER_COLS), nextCaret)
-    const prev = previous.current
-
-    if (cell.lineIndex > prev.lineIndex) {
-      // Fin de ligne : retour chariot et papier qui monte, mais aucun son.
-      sceneRef.current?.beginNewLine()
-    } else if (cell.lineIndex < prev.lineIndex) {
-      sceneRef.current?.beginNewLine()
-    }
-
-    previous.current = { lineIndex: cell.lineIndex, length: value.length }
-    setCaret(nextCaret)
-    onChange(value)
+    commit(event.target.value, event.target.selectionStart ?? event.target.value.length)
   }
 
   function toggleLamp() {
     unlockAudio()
     playSound('lamp', settings)
+    setVeilleuseOn(!lampOn)
     updateSettings({ mode: lampOn ? 'jour' : 'nuit' })
   }
 
@@ -171,11 +251,6 @@ export default function Editor({
     setSheet((current) => (current === id ? null : id))
   }
 
-  function focusWriter() {
-    unlockAudio()
-    textareaRef.current?.focus()
-  }
-
   return (
     <main className="screen writer-screen" onPointerDown={unlockAudio}>
       <header className="writer-header">
@@ -201,13 +276,18 @@ export default function Editor({
         lampOn={lampOn}
         grain={settings.grain}
         L={L}
-        historyLines={historyLines}
-        currentLine={view.current}
-        currentLineIndex={view.cell.lineIndex}
-        caretColumn={view.cell.column}
+        contextLines={contextLines}
+        activeLineIndex={cell.lineIndex}
+        activeLineText={activeText}
+        activeLineLength={activeLength}
+        caretColumn={cell.column}
+        lineCount={layout.length}
         interactive
         onToggleLamp={toggleLamp}
-        onMachineClick={focusWriter}
+        onSelectCell={selectCell}
+        onGoToEnd={() => moveCaret(note.text.length)}
+        onKeepFocus={keepFocus}
+        onMachineClick={keepFocus}
       />
 
       <ToolBar
@@ -225,8 +305,6 @@ export default function Editor({
         value={note.text}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onSelect={(event) => setCaret(event.target.selectionStart ?? note.text.length)}
-        onKeyUp={(event) => setCaret(event.target.selectionStart ?? note.text.length)}
         autoComplete="off"
         autoCapitalize="off"
         autoCorrect="off"

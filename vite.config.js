@@ -53,6 +53,24 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
+  // Navigation : réseau d’abord, pour que le mobile reçoive immédiatement
+  // chaque nouveau build ; cache en secours quand le Wi-Fi est absent.
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Assets hachés : immuables, donc cache d’abord (fonctionne hors ligne).
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
@@ -64,10 +82,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
-          if (request.mode === 'navigate') return caches.match('/index.html');
-          return Response.error();
-        });
+        .catch(() => Response.error());
     })
   );
 });
@@ -82,4 +97,7 @@ export default defineConfig({
   build: {
     target: 'es2022',
   },
+  // Accès depuis le téléphone sur le même réseau Wi-Fi.
+  server: { host: '0.0.0.0' },
+  preview: { host: '0.0.0.0' },
 })

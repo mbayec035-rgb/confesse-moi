@@ -64,6 +64,11 @@ export const TYPING_TYPES = [
   { id: 'claquant', nom: 'Claquant' },
 ]
 
+export const TYPING_MODES = [
+  { id: 'ecraser', nom: 'Écraser' },
+  { id: 'inserer', nom: 'Insérer' },
+]
+
 export const DEFAULT_SETTINGS = {
   mode: 'jour',
   paperColor: '#3A3835',
@@ -72,6 +77,7 @@ export const DEFAULT_SETTINGS = {
   inkIntensity: 100,
   fontSize: 15,
   lineHeight: 1.6,
+  typingMode: 'ecraser',
   capsuleId: 'classique',
   charms: [],
   afficherMachine: false,

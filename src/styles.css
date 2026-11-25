@@ -12,7 +12,7 @@
   --rail-mid: #1b1d20;
   --rail-bottom: #0f1012;
   --rail-cap: #0b0b0c;
-  --toolbar: #8c857b;
+  --toolbar: #8b847d;
   --toolbar-border: #d9c9a8;
   --tool-icon: #d8cdb8;
   --paper-night: #3a3835;
@@ -111,7 +111,8 @@ button { cursor: pointer; }
   min-height: 0;
   padding: 0;
   overflow: hidden;
-  background: #1a1a1a;
+  overscroll-behavior: none;
+  background: #1b1b1b;
 }
 .writer-header {
   position: absolute; z-index: 12;
@@ -127,8 +128,10 @@ button { cursor: pointer; }
 
 .writer-stage {
   position: absolute; inset: 0;
+  /* .scene : aucun transform/filter/opacity sur l’ancêtre des calques. */
+  isolation: isolate;
   overflow: hidden;
-  background: #1a1a1a;
+  background: #1b1b1b;
   touch-action: none;
 }
 .scene-defs { position: absolute; width: 0; height: 0; }
@@ -157,7 +160,7 @@ button { cursor: pointer; }
     var(--paper-color);
 }
 .paper-lower-shade { position: absolute; inset: 0; background: rgba(9,11,15,.48); pointer-events: none; }
-.paper-ambient { position: absolute; inset: 0; background: rgba(9,11,15,.34); opacity: 0; }
+.paper-ambient { position: absolute; inset: 0; background: rgba(234,243,255,.42); opacity: 0; }
 .writer-stage:not(.lamp-on) .paper-ambient { opacity: 1; }
 .paper-texture {
   position: absolute; inset: 0;
@@ -167,29 +170,45 @@ button { cursor: pointer; }
   pointer-events: none;
 }
 
-/* Un seul faisceau : il naît du haut de la pointe en T et suit la capsule. */
+/* 2) Faisceau : frère du chariot, z-index 2. Le transform est porté par le
+   faisceau lui-même (autorisé) et non par un ancêtre des autres calques. */
 .beam-layer {
-  position: absolute; left: 0; bottom: calc(var(--L) * .152);
-  width: 220%; height: 180%;
+  position: absolute; z-index: 2; pointer-events: none;
+  left: var(--cap-x, 0px);
+  top: 41.7%;                       /* haut de la capsule = origine de la lumière */
+  width: 135%; height: 32%;
+  transform: translate(-50%, -100%) rotate(var(--tilt, 0deg));
   transform-origin: 50% 100%;
-  transform: translate3d(calc(var(--beam-x-px, 0px) - var(--beam-half-px, 0px)), 0, 0) rotate(var(--tilt, 0deg));
+  background: radial-gradient(ellipse 55% 95% at 50% 100%,
+    #FFFFFF 0%, #EAF3FF 18%, #B9D0F3 38%, #7C9ACB 68%, rgba(124,154,203,0) 100%);
+  filter: blur(6px);
+  mix-blend-mode: screen;
   transition: transform 130ms linear;
-  pointer-events: none;
 }
-.beam-dark { position: absolute; inset: 0; }
-.beam-glow { position: absolute; inset: 0; filter: blur(6px); mix-blend-mode: screen; }
 
 /* Ligne de frappe à 35 % H : 36 % de la hauteur de la feuille au-dessus du rail. */
 .paper-lines {
   position: absolute; left: 21%; width: calc(var(--col-width) * 21);
-  top: 2%; bottom: 36%;
-  filter: url(#confesse-ink) blur(.3px);
-  opacity: var(--ink-opacity, 1);
-  transition: transform 250ms ease-out;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, black 18%, black 100%);
-  mask-image: linear-gradient(180deg, transparent 0, black 18%, black 100%);
+  /* Base de la ligne de frappe à 35,4 % de H, juste au-dessus du T. */
+  top: 19.5%; bottom: 64.6%;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 1;                       /* jamais de transparence sur la ligne active */
+  transform: translate3d(0, var(--paper-shift, 0px), 0);
+  transition: transform 160ms ease-out;
 }
-.paper-lines.rising { transform: translateY(var(--line-step)); transition: none; }
+.paper-lines.rising { transform: translate3d(0, calc(var(--paper-shift, 0px) + var(--line-step)), 0); transition: none; }
+.paper-lines.rolling-forward { animation: roll-forward 220ms ease-out; }
+.paper-lines.rolling-back { animation: roll-back 220ms ease-out; }
+@keyframes roll-forward {
+  from { transform: translate3d(0, calc(var(--paper-shift, 0px) + var(--line-step)), 0); }
+  to { transform: translate3d(0, var(--paper-shift, 0px), 0); }
+}
+@keyframes roll-back {
+  from { transform: translate3d(0, calc(var(--paper-shift, 0px) - var(--line-step)), 0); }
+  to { transform: translate3d(0, var(--paper-shift, 0px), 0); }
+}
 .printed-line {
   position: absolute; left: 0;
   width: calc(var(--col-width) * 21);
@@ -203,50 +222,121 @@ button { cursor: pointer; }
   transform-origin: 50% 100%;
 }
 .printed-char { display: inline-block; width: var(--col-width); text-align: center; }
+.printed-char.under-caret {
+  color: #15110f;
+  text-shadow: 0 0 4px rgba(77,141,255,.85);
+}
+.current-line-wrap {
+  position: absolute; left: 0; bottom: 0;
+  width: calc(var(--col-width) * 21); height: var(--line-step);
+}
+.current-line { inset: 0; }
+.caret-cell {
+  position: absolute; left: 0; bottom: 0;
+  width: var(--col-width); height: var(--line-step);
+  transform: translate3d(0, 0, 0);
+  pointer-events: none;
+  z-index: 2;
+}
+.caret-cell::before {
+  content: ""; position: absolute; inset: -20% -30%;
+  background: radial-gradient(ellipse at 50% 65%, rgba(77,141,255,.22), transparent 70%);
+  border-radius: 50%;
+}
+.caret-cell::after {
+  content: ""; position: absolute; left: 8%; right: 8%; bottom: 1px;
+  height: 1.5px; border-radius: 2px;
+  background: #4d8dff;
+  box-shadow: 0 0 5px rgba(77,141,255,.75);
+}
 .paper-heart { position: absolute; right: 22%; top: 13%; font-size: 18px; opacity: .5; }
 .paper-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(20,18,14,.24) 100%); }
 
-/* Rail fixe à 44 % de H. */
+/* 4) Rail + chariot au-dessus du texte. Le rail reste fixe et ne capte rien. */
 .rail-track {
-  position: absolute; top: 44%; left: -2%; width: 104%;
-  height: calc(var(--L) * .05);
+  position: absolute; top: calc(41.7% + var(--L) * .0525); left: -2%; width: 104%;
+  height: calc(var(--L) * .05); min-height: 44px;
+  touch-action: none;
+  pointer-events: none;
   transform: translateY(-50%);
   background: linear-gradient(180deg, var(--rail-top) 0%, var(--rail-mid) 52%, var(--rail-bottom) 100%);
   box-shadow: 0 8px 18px rgba(0,0,0,.55);
-  z-index: 3;
+  z-index: 4;
 }
 .rail-track::before { content: ""; position: absolute; inset: 0 0 50% 0; background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0)); border-radius: inherit; }
 .rail-cap { position: absolute; top: 50%; transform: translateY(-50%); width: calc(var(--L) * .04); height: calc(var(--L) * .065); background: var(--rail-cap); border-radius: 2px; z-index: 4; box-shadow: 0 3px 8px rgba(0,0,0,.5); }
 .rail-cap.left { left: 1%; }
 .rail-cap.right { right: 1%; }
 
-/* Capsule et pointe en T : X = 21 % L + colonne × 2,65 % L. */
-.carriage-anchor {
-  position: absolute; top: 44%; left: 21%;
-  width: 0; height: 0; z-index: 6;
-  transform: translate3d(var(--carriage-x-px, 0px), 0, 0);
-  transition: transform 75ms ease-out;
+.chariot {
+  position: absolute; top: 41.7%; left: var(--cap-x, 0px);
+  width: 24.5%; height: calc(var(--L) * .105); min-height: 44px;
+  z-index: 4;
+  transform: translateX(-50%);
+  transition: transform 90ms ease-out;
+  touch-action: none;
 }
-.carriage-anchor.returning { transition-duration: 300ms; }
+.writer-stage.dragging-capsule .chariot,
+.writer-stage.dragging-capsule .beam-layer { transition: none; }
+
+/* Pointe en T : tige puis barre au-dessus, posée sous la ligne de frappe. */
+.carriage-anchor {
+  position: absolute; left: 50%; bottom: 100%;
+  display: flex; flex-direction: column-reverse; align-items: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
+.carriage-anchor::after {
+  content: ""; position: absolute; left: 50%; bottom: -3px;
+  width: 4.9vw; height: 3px; background: #4d8dff;
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px #4d8dff;
+}
+.tip-stem {
+  width: 1.2vw; height: calc(var(--H, 100dvh) * .024);
+  background: #141414; border-radius: 1px;
+}
+.tip-bar {
+  width: 4.9vw; height: 1.2vw;
+  background: #141414; border-radius: 2px;
+}
+.type-flash {
+  position: absolute; left: 50%; top: -5px;
+  width: 4.9vw; height: 3px; background: #d8443e; border-radius: 2px;
+  opacity: 0; transform: translateX(-50%);
+  box-shadow: 0 0 6px rgba(216,68,62,.7);
+}
+
 .capsule-carriage {
-  position: absolute;
-  left: calc(var(--L) * -.125); top: calc(var(--L) * -.0525);
-  width: calc(var(--L) * .25); height: calc(var(--L) * .105);
+  position: absolute; left: 0; top: 0;
+  width: 100%; height: 100%;
   border: 0; border-radius: 999px; padding-left: calc(var(--L) * .035);
   display: flex; align-items: center; gap: calc(var(--L) * .03);
   background: linear-gradient(180deg, #45423f 0%, #3a3836 45%, #2f2d2b 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.26), 0 8px 14px rgba(0,0,0,.45);
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  z-index: 2;
 }
+/* Zone tactile invisible de 24 px autour de la capsule. */
+.capsule-carriage::before {
+  content: ""; position: absolute; inset: -24px;
+  border-radius: inherit;
+  background: transparent;
+  pointer-events: auto;
+}
+.writer-stage.dragging-capsule .capsule-carriage { cursor: grabbing; }
+.capsule-carriage .voyant { position: relative; z-index: 1; }
 .voyant { display: block; width: calc(var(--L) * .016); height: calc(var(--L) * .016); border-radius: 50%; }
 .voyant.green { background: #7ed957; box-shadow: 0 0 6px rgba(126,217,87,.75); }
 .typing .voyant.green { background: #ff9f43; box-shadow: 0 0 7px rgba(255,159,67,.9); }
 .voyant.blue { background: #2f7bff; box-shadow: 0 0 6px rgba(47,123,255,.75); }
 .voyant.red { background: #4a2a28; }
-.tip-stem { position: absolute; left: calc(var(--L) * -.0035); bottom: calc(var(--L) * .0525); width: calc(var(--L) * .007); height: calc(var(--L) * .09); background: #141414; border-radius: 1px; }
-.tip-bar { position: absolute; left: calc(var(--L) * -.025); bottom: calc(var(--L) * .1425); width: calc(var(--L) * .05); height: calc(var(--L) * .012); background: #141414; border-radius: 2px; }
-.type-flash { position: absolute; left: calc(var(--L) * .027); bottom: calc(var(--L) * .141); width: calc(var(--L) * .02); height: 3px; background: #d8443e; border-radius: 2px; opacity: 0; box-shadow: 0 0 6px rgba(216,68,62,.7); }
-.rail-spill { position: absolute; left: calc(var(--L) * -.16); bottom: calc(var(--L) * -.03); width: calc(var(--L) * .32); height: calc(var(--L) * .06); background: radial-gradient(ellipse at 50% 50%, var(--beam-color) 0%, transparent 70%); opacity: 0; mix-blend-mode: screen; filter: blur(4px); }
-.lamp-on .rail-spill { opacity: .18; }
 
 /* Barre d'outils beige, collée au-dessus du clavier à ~63 % de H. */
 .tool-pill {
@@ -267,7 +357,7 @@ button { cursor: pointer; }
 .tool-icon.active { background: rgba(255,255,255,.17); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
 .chevron-button { width: 14%; }
 .tool-separator { width: 1px; height: 60%; background: rgba(216,205,184,.5); }
-.hidden-input { position: fixed; left: 50%; bottom: 0; width: 2px; height: 2px; opacity: 0; border: 0; padding: 0; resize: none; pointer-events: none; }
+.hidden-input { position: fixed; left: 50%; bottom: 0; width: 2px; height: 2px; opacity: 0; border: 0; padding: 0; resize: none; pointer-events: none; user-select: none; -webkit-user-select: none; }
 
 /* ---------- Studio ---------- */
 .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 14px; }
@@ -275,7 +365,7 @@ button { cursor: pointer; }
 .section-note { color: var(--muted); font-size: 12px; margin: -4px 0 14px; line-height: 1.5; }
 .preview-wrap { position: relative; max-width: 100%; height: 190px; margin: 0 0 14px; border-radius: 16px; overflow: hidden; }
 .preview-wrap .writer-stage { inset: 0; border-radius: 16px; }
-.preview-wrap .paper-lines { bottom: 10px; }
+.preview-wrap .paper-lines { top: 19.5%; bottom: 55%; }
 .preview-wrap .capsule-carriage, .preview-wrap .type-flash { display: none; }
 .studio-machine { display: flex; justify-content: center; margin-bottom: 12px; }
 .setting-block { margin-bottom: 16px; }

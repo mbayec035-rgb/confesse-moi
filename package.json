@@ -5,9 +5,11 @@
   "type": "module",
   "description": "Confesse-moi — une machine à écrire intime, hors ligne.",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host 0.0.0.0",
+    "deploy": "npm run build && npm run preview",
+    "auto-deploy": "node scripts/auto-deploy.mjs",
     "assets": "node scripts/generate-assets.mjs"
   },
   "dependencies": {

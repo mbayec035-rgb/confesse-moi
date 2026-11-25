@@ -3,7 +3,7 @@ import PaperScene from './PaperScene.jsx'
 import MachineDecor from './MachineDecor.jsx'
 import CapsulePicker from './CapsulePicker.jsx'
 import CharmPicker from './CharmPicker.jsx'
-import { BEAM_SHAPES, LAMP_COLORS, PAPER_COLORS, TYPING_TYPES, getCapsule } from '../data.js'
+import { BEAM_SHAPES, LAMP_COLORS, PAPER_COLORS, TYPING_MODES, TYPING_TYPES, getCapsule } from '../data.js'
 import { Range, SegmentGroup, Swatches } from './controls.jsx'
 import { playSound, unlockAudio } from '../sounds.js'
 
@@ -80,16 +80,21 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
             lampOn={lampOn}
             grain={settings.grain}
             L={390}
-            historyLines={['Confie-toi,', 'la page t’attend.']}
-            currentLine="Chaque mot reste ici."
-            currentLineIndex={2}
+            contextLines={[
+              { index: 0, text: 'Confie-toi,' },
+              { index: 1, text: 'la page t’attend.' },
+            ]}
+            activeLineIndex={2}
+            activeLineText="Chaque mot reste ici."
+            activeLineLength={22}
+            lineCount={3}
             caretColumn={8}
           />
         </div>
       </section>
 
       <section className="settings-section">
-        <h2>Papier et encre par défaut</h2>
+        <h2>Mise en page et frappe</h2>
         <div className="setting-block">
           <span className="setting-label">Couleur du papier</span>
           <Swatches colors={PAPER_COLORS} value={settings.paperColor} onChange={(paperColor) => updateSettings({ paperColor })} label="papier" />
@@ -98,6 +103,11 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
         <Range label="Intensité de l’encre" value={settings.inkIntensity} min={50} max={150} step={5} display={`${settings.inkIntensity} %`} onChange={(inkIntensity) => updateSettings({ inkIntensity })} />
         <Range label="Taille de police" value={settings.fontSize} min={11} max={22} display={`${settings.fontSize} px`} onChange={(fontSize) => updateSettings({ fontSize })} />
         <Range label="Interligne" value={settings.lineHeight} min={1.3} max={2} step={0.05} display={`${settings.lineHeight.toFixed(2)}×`} onChange={(lineHeight) => updateSettings({ lineHeight })} />
+        <div className="setting-block">
+          <span className="setting-label">Frappe</span>
+          <SegmentGroup options={TYPING_MODES} value={settings.typingMode} onChange={(typingMode) => updateSettings({ typingMode })} label="Mode de frappe" />
+        </div>
+        <p className="section-note">Écraser remplace la lettre sous le T ; Insérer décale le texte à droite et recalcule les lignes.</p>
         <div className="setting-block">
           <span className="setting-label">Capsule (ruban)</span>
           <button type="button" className="setting-choice" onClick={() => setSheet('capsules')}>
