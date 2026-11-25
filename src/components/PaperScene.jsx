@@ -3,6 +3,10 @@ import { CHARMS } from '../data.js'
 import { WRITER_COLS } from '../text.js'
 import { getPaperTexture } from '../paperTexture.js'
 
+// Marge gauche de la grille, en fraction de L. Avec 25 colonnes à 2,66 % L,
+// le bloc occupe 16 % → 82,5 % : les bords ombrés du papier restent libres.
+const GRID_LEFT = 0.16
+
 function hash(seed, index) {
   let value = 2166136261 ^ index
   for (let cursor = 0; cursor < seed.length; cursor += 1) {
@@ -189,7 +193,7 @@ const PaperScene = forwardRef(function PaperScene({
     : settings.patineRuban ? '#2B1F1A' : '#1A1A1A'
   // Hors faisceau, le papier reste sombre comme sur la référence.
   const paperColor = interactive ? '#2F2D2A' : settings.paperColor
-  // Grille : colonne 2,66 % L, marge 21 % L, corps ~3,6 % L.
+  // Grille : colonne 2,66 % L, marge 16 % L, corps ~3,6 % L.
   const columnWidth = L * 0.0266
   const fontSize = interactive ? L * 0.036 : settings.fontSize
   const nearStep = interactive ? L * 0.045 : fontSize * Math.min(settings.lineHeight, 1.35)
@@ -204,7 +208,7 @@ const PaperScene = forwardRef(function PaperScene({
     : caretColumn
   // X du chariot : position ABSOLUE dans la scène, centre de la cellule visée.
   // Le faisceau, frère du chariot, lit la même variable --cap-x.
-  const columnCenter = (column) => L * 0.21 + (column + 0.5) * columnWidth
+  const columnCenter = (column) => L * GRID_LEFT + (column + 0.5) * columnWidth
   const minX = columnCenter(0)
   const maxX = columnCenter(maxColumn)
   const tiltFor = (x) => clamp(((L * 0.5 - x) / L) * 35, -20, 20)
@@ -215,6 +219,8 @@ const PaperScene = forwardRef(function PaperScene({
     // Grille d’écriture : sans ces variables, les cellules n’ont aucune
     // largeur et le T ne peut pas se placer sous la lettre visée.
     stage.style.setProperty('--paper-color', paperColor)
+    stage.style.setProperty('--grid-left', `${(GRID_LEFT * 100).toFixed(2)}%`)
+    stage.style.setProperty('--writer-cols', String(WRITER_COLS))
     stage.style.setProperty('--col-width', `${columnWidth.toFixed(2)}px`)
     stage.style.setProperty('--line-step', `${nearStep.toFixed(2)}px`)
     stage.style.setProperty('--font-size', `${fontSize.toFixed(2)}px`)
@@ -308,7 +314,7 @@ const PaperScene = forwardRef(function PaperScene({
     event.preventDefault()
     const x = clamp(drag.startCapX + event.clientX - drag.startX, minX, maxX)
     setCapX(x)
-    const column = clamp(Math.round((x - L * 0.21) / columnWidth - 0.5), 0, maxColumn)
+    const column = clamp(Math.round((x - L * GRID_LEFT) / columnWidth - 0.5), 0, maxColumn)
     if (column !== drag.lastColumn) {
       drag.lastColumn = column
       drag.moved = true
@@ -375,7 +381,7 @@ const PaperScene = forwardRef(function PaperScene({
     if (!stage || !lines) return
     const stageRect = stage.getBoundingClientRect()
     const linesRect = lines.getBoundingClientRect()
-    const rawColumn = (event.clientX - stageRect.left - L * 0.21) / columnWidth
+    const rawColumn = (event.clientX - stageRect.left - L * GRID_LEFT) / columnWidth
     const column = clamp(Math.round(rawColumn), 0, WRITER_COLS - 1)
     let bestOffset = 0
     let bestDistance = Infinity

@@ -1,6 +1,6 @@
 // Le texte brut reste intact dans la note. Le moteur ci-dessous calcule
-// seulement les lignes affichées sur la feuille (grille monospace de 21 cases).
-export const WRITER_COLS = 21
+// seulement les lignes affichées sur la feuille (grille monospace de 25 cases).
+export const WRITER_COLS = 25
 
 export function wrapText(text, maxCols) {
   return layoutText(text, maxCols).map((line) => line.text)

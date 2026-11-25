@@ -188,7 +188,7 @@ button { cursor: pointer; }
 
 /* Ligne de frappe à 35 % H : 36 % de la hauteur de la feuille au-dessus du rail. */
 .paper-lines {
-  position: absolute; left: 21%; width: calc(var(--col-width) * 21);
+  position: absolute; left: var(--grid-left, 21%); width: calc(var(--col-width) * var(--writer-cols, 21));
   /* Base de la ligne de frappe à 35,4 % de H, juste au-dessus du T. */
   top: 19.5%; bottom: 64.6%;
   z-index: 3;
@@ -211,7 +211,7 @@ button { cursor: pointer; }
 }
 .printed-line {
   position: absolute; left: 0;
-  width: calc(var(--col-width) * 21);
+  width: calc(var(--col-width) * var(--writer-cols, 21));
   height: var(--line-step);
   font-family: "Special Elite", "Courier New", monospace;
   font-size: var(--font-size, 16px);
@@ -228,7 +228,7 @@ button { cursor: pointer; }
 }
 .current-line-wrap {
   position: absolute; left: 0; bottom: 0;
-  width: calc(var(--col-width) * 21); height: var(--line-step);
+  width: calc(var(--col-width) * var(--writer-cols, 21)); height: var(--line-step);
 }
 .current-line { inset: 0; }
 .caret-cell {
@@ -447,4 +447,302 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 @media (min-width: 600px) {
   .screen:not(.writer-screen) { padding: 28px 24px calc(88px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- Accueil : archives de vieille machine à écrire ----------
+   Tout est porté par .home-screen (ou par :has(.home-screen)) : aucune
+   règle ci-dessous ne s’applique à l’écriture, aux réglages ou aux feuilles. */
+html:has(.home-screen),
+.app:has(.home-screen) { background: #26241f; }
+
+.screen.home-screen {
+  --home-bg: #35322d;
+  --home-ink: #e8e7d6;
+  --home-muted: #a6a592;
+  --home-line: rgba(232, 231, 214, .17);
+  --home-accent: #c3c19b;
+  position: relative;
+  color: var(--home-ink);
+  font-family: "Special Elite", "Courier Prime", "Courier New", monospace;
+  background-color: var(--home-bg);
+  background-image:
+    radial-gradient(ellipse at 16% 8%, rgba(255, 255, 255, .045), transparent 52%),
+    radial-gradient(ellipse at 88% 72%, rgba(0, 0, 0, .13), transparent 58%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .012) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .014) 0 1px, transparent 1px 7px);
+  padding: 28px 22px calc(106px + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  letter-spacing: .02em;
+}
+
+.screen.home-screen .app-header {
+  gap: 12px;
+  margin-bottom: 26px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--home-line);
+}
+.screen.home-screen .app-header h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+}
+.screen.home-screen .app-header p {
+  margin: 7px 0 0;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.screen.home-screen .header-capsule {
+  width: 38px; height: 16px;
+  border: 1px solid rgba(232, 231, 214, .24);
+  border-radius: 8px 3px 3px 8px;
+  background: #74705b;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, .3);
+  transform: rotate(-24deg);
+}
+.screen.home-screen .home-sprig {
+  width: 46px; height: 46px;
+  margin-left: auto;
+  color: var(--home-accent);
+  opacity: .82;
+}
+
+.screen.home-screen .home-machine {
+  display: flex; justify-content: center;
+  margin: -4px 0 24px;
+  padding: 12px 8px;
+  border: 1px solid var(--home-line);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .09);
+}
+.screen.home-screen .machine-decor {
+  width: min(72%, 258px);
+  filter: sepia(.32) saturate(.82) brightness(1.04);
+}
+
+.screen.home-screen .archive-divider {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 0 0 16px;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+}
+.screen.home-screen .archive-divider::before,
+.screen.home-screen .archive-divider::after {
+  content: ""; height: 1px; flex: 1;
+  background: var(--home-line);
+}
+.screen.home-screen .divider-sprig { width: 20px; height: 20px; flex: none; color: var(--home-accent); }
+
+.screen.home-screen .note-list {
+  display: flex; flex-direction: column; gap: 0;
+  border-top: 1px solid var(--home-line);
+}
+.screen.home-screen .note-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 14px;
+  position: relative;
+  padding: 18px 2px;
+  color: var(--home-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--home-line);
+  border-radius: 0;
+  box-shadow: none;
+  animation: home-card-in 340ms ease both;
+  transition: background 180ms ease;
+}
+.screen.home-screen .note-card:hover { background: rgba(232, 231, 214, .035); }
+.screen.home-screen .note-card:nth-child(2) { animation-delay: 45ms; }
+.screen.home-screen .note-card:nth-child(3) { animation-delay: 90ms; }
+.screen.home-screen .note-card:nth-child(4) { animation-delay: 135ms; }
+.screen.home-screen .note-card:nth-child(n+5) { animation-delay: 180ms; }
+@keyframes home-card-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.screen.home-screen .note-index {
+  grid-column: 1; grid-row: 1 / span 3;
+  align-self: start;
+  padding-right: 11px;
+  border-right: 1px solid var(--home-line);
+  color: var(--home-accent);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+}
+.screen.home-screen .note-card-top,
+.screen.home-screen .note-excerpt,
+.screen.home-screen .note-card time,
+.screen.home-screen .rename-row { grid-column: 2; min-width: 0; }
+.screen.home-screen .note-card-top { gap: 10px; align-items: flex-start; }
+.screen.home-screen .note-card h2 {
+  margin: 0;
+  font-family: "Special Elite", "Courier Prime", monospace;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.screen.home-screen .note-excerpt {
+  margin: 9px 0 11px;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: .01em;
+}
+.screen.home-screen .note-card time {
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.screen.home-screen .icon-button {
+  min-width: 30px; min-height: 30px; padding: 4px;
+  color: var(--home-muted);
+  border-radius: 2px;
+}
+.screen.home-screen .icon-button:hover { color: var(--home-ink); background: rgba(232, 231, 214, .06); }
+.screen.home-screen .note-options-icon { width: 22px; height: 22px; fill: currentColor; }
+.screen.home-screen .note-menu {
+  top: 42px; right: 0; min-width: 156px;
+  background: #3b3831;
+  border: 1px solid rgba(232, 231, 214, .2);
+  border-radius: 2px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .42);
+}
+.screen.home-screen .note-menu button {
+  padding: 10px 14px;
+  color: var(--home-ink);
+  background: transparent;
+  border-bottom: 1px solid rgba(232, 231, 214, .1);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: .1em;
+}
+.screen.home-screen .note-menu button:last-child { border-bottom: 0; }
+.screen.home-screen .note-menu button:hover { background: rgba(232, 231, 214, .06); }
+.screen.home-screen .note-menu button.danger { color: #d6a093; }
+
+.screen.home-screen .rename-row { gap: 8px; }
+.screen.home-screen .rename-row input {
+  flex: 1; min-width: 0;
+  padding: 8px 10px;
+  color: var(--home-ink);
+  background: rgba(0, 0, 0, .2);
+  border: 1px solid var(--home-line);
+  border-radius: 2px;
+  font-family: "Courier Prime", "Courier New", monospace;
+}
+.screen.home-screen .primary-button {
+  padding: 11px 18px;
+  color: var(--home-ink);
+  background: transparent;
+  border: 1px solid var(--home-accent);
+  border-radius: 2px;
+  font-family: "Special Elite", "Courier Prime", monospace;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  transition: background 180ms ease, color 180ms ease;
+}
+.screen.home-screen .primary-button:hover { background: rgba(232, 231, 214, .1); }
+.screen.home-screen .primary-button.small { padding: 8px 12px; font-size: 12px; }
+
+.screen.home-screen .empty-state {
+  padding: 32px 12px 38px;
+  border: 1px solid var(--home-line);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .08);
+}
+.screen.home-screen .empty-illustration { width: 146px; height: auto; margin-bottom: 20px; }
+.screen.home-screen .empty-state h2 {
+  margin: 0 0 10px;
+  font-family: "Special Elite", "Courier Prime", monospace;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: .12em;
+}
+.screen.home-screen .empty-state p {
+  max-width: 320px;
+  margin: 0 auto 24px;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.screen.home-screen .home-footer {
+  margin: 30px 0 0;
+  padding-top: 15px;
+  border-top: 1px solid var(--home-line);
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Étiquettes de dossiers : uniquement quand l’accueil est affiché. */
+.app:has(.home-screen) .bottom-nav {
+  height: calc(72px + env(safe-area-inset-bottom));
+  padding: 0 10px env(safe-area-inset-bottom);
+  background: #2b2925;
+  border-top: 1px solid rgba(232, 231, 214, .18);
+  backdrop-filter: none;
+}
+.app:has(.home-screen) .nav-tab {
+  height: 56px;
+  margin: 0 0 8px 6px;
+  gap: 5px;
+  color: #9a9986;
+  background: rgba(232, 231, 214, .035);
+  border: 1px solid rgba(232, 231, 214, .13);
+  border-bottom-color: transparent;
+  border-radius: 7px 7px 0 0;
+  font-family: "Special Elite", "Courier Prime", monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+.app:has(.home-screen) .nav-tab:first-child { margin-left: 0; }
+.app:has(.home-screen) .nav-tab.active {
+  color: #2f2d28;
+  background: #e8e7d6;
+  border-color: #cfcebb;
+  border-bottom-color: transparent;
+  box-shadow: 0 -3px 10px rgba(0, 0, 0, .2);
+  transform: translateY(-2px);
+}
+.app:has(.home-screen) .nav-tab:hover { background: rgba(232, 231, 214, .08); }
+.app:has(.home-screen) .nav-tab.active:hover { background: #e8e7d6; }
+.app:has(.home-screen) .nav-tab svg { width: 19px; height: 19px; stroke-width: 1.6; }
+.app:has(.home-screen) .nav-tab-add { justify-content: center; padding-top: 0; }
+.app:has(.home-screen) .nav-tab-add::before { display: none; }
+.app:has(.home-screen) .nav-tab-add svg { width: 21px; height: 21px; color: inherit; stroke: currentColor; }
+.app:has(.home-screen) .nav-tab-add span { display: none; }
+
+@media (min-width: 600px) {
+  .screen.home-screen { padding: 40px 34px calc(106px + env(safe-area-inset-bottom)); }
+  .screen.home-screen .app-header h1 { font-size: 24px; }
+  .screen.home-screen .note-card h2 { font-size: 16px; }
+  .app:has(.home-screen) .bottom-nav {
+    left: 50%; right: auto;
+    width: 100%; max-width: 560px;
+    transform: translateX(-50%);
+  }
+  .app:has(.home-screen) .nav-tab.active { transform: translateY(-2px); }
 }
