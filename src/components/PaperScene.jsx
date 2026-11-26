@@ -311,7 +311,6 @@ const PaperScene = forwardRef(function PaperScene({
   onKeepFocus,
 }, ref) {
   const stageRef = useRef(null)
-  const paperRef = useRef(null)
   const linesRef = useRef(null)
   const currentLineRef = useRef(null)
   const flashRef = useRef(null)
@@ -602,9 +601,12 @@ const PaperScene = forwardRef(function PaperScene({
 
   function startPaperPointer(event) {
     if (!interactive || (event.button !== undefined && event.button !== 0)) return
+    // La capsule et les marqueurs ont leurs propres gestes : on ne leur vole
+    // pas le pointeur. Tout le reste de la scène fait défiler le papier.
+    if (event.target.closest?.('.capsule-carriage, .chariot, .sticker')) return
     event.preventDefault()
     onKeepFocus?.()
-    paperRef.current?.setPointerCapture?.(event.pointerId)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
     dragRef.current = {
       type: 'scroll',
       pointerId: event.pointerId,
@@ -667,7 +669,7 @@ const PaperScene = forwardRef(function PaperScene({
     const drag = dragRef.current
     if (!drag || drag.type !== 'scroll' || drag.pointerId !== event.pointerId) return
     event.preventDefault()
-    paperRef.current?.releasePointerCapture?.(event.pointerId)
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
     dragRef.current = null
     onKeepFocus?.()
     if (!drag.moved && Math.abs(event.clientY - drag.startY) < 8) selectFromPoint(event)
@@ -701,7 +703,14 @@ const PaperScene = forwardRef(function PaperScene({
   }
 
   return (
-    <div ref={stageRef} className={`writer-stage ${lampOn ? 'lamp-on' : 'lamp-off'}`}>
+    <div
+      ref={stageRef}
+      className={`writer-stage ${lampOn ? 'lamp-on' : 'lamp-off'}`}
+      onPointerDown={interactive ? startPaperPointer : undefined}
+      onPointerMove={interactive ? movePaperPointer : undefined}
+      onPointerUp={interactive ? endPaperPointer : undefined}
+      onPointerCancel={interactive ? endPaperPointer : undefined}
+    >
       <svg className="scene-defs" width="0" height="0" aria-hidden="true">
         <defs>
           <clipPath id="roll" clipPathUnits="objectBoundingBox">
@@ -714,14 +723,7 @@ const PaperScene = forwardRef(function PaperScene({
         </defs>
       </svg>
 
-      <div
-        ref={paperRef}
-        className="paper-sheet paper"
-        onPointerDown={interactive ? startPaperPointer : undefined}
-        onPointerMove={interactive ? movePaperPointer : undefined}
-        onPointerUp={interactive ? endPaperPointer : undefined}
-        onPointerCancel={interactive ? endPaperPointer : undefined}
-      >
+      <div className="paper-sheet paper">
         <PaperTexture grain={grain} lampOn={lampOn} />
         {settings.charms.includes('coeur') && (
           <span className="paper-heart" style={{ color: heartCharm?.couleur }} aria-hidden="true">♥</span>

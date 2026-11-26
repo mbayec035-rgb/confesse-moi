@@ -440,7 +440,12 @@ export default function Editor({
         H={viewport.height}
         interactive
         onSelectCell={selectCell}
-        onGoToEnd={() => moveCaret(note.text.length)}
+        onGoToEnd={() => {
+          // Même quand le curseur est déjà à la fin, un double appui sur la
+          // capsule doit ramener le papier à la ligne de frappe.
+          if (Math.abs(scrollRef.current) > 0.01) animateScrollTo(0, 300)
+          moveCaret(note.text.length)
+        }}
         onKeepFocus={keepFocus}
         onMachineClick={keepFocus}
       />

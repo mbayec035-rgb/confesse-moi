@@ -543,9 +543,10 @@ button { cursor: pointer; }
   cursor: grab;
   z-index: 2;
 }
-/* Zone tactile invisible de 24 px autour de la capsule. */
+/* Zone tactile réduite : un pourtour de 24 px empêchait de faire glisser le
+   papier juste au-dessus du rail sur téléphone. */
 .capsule-carriage::before {
-  content: ""; position: absolute; inset: -24px;
+  content: ""; position: absolute; inset: -6px;
   border-radius: inherit;
   background: transparent;
   pointer-events: auto;
