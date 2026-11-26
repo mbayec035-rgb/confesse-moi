@@ -133,15 +133,16 @@ function playPaperTap(ctx, volume, haptics) {
     gain.gain.value = 0.4 * volume
     source.connect(gain).connect(ctx.destination)
     source.start()
-    source.stop(ctx.currentTime + Math.min(paperTapBuffer.duration, 0.35))
+    source.stop(ctx.currentTime + Math.min(paperTapBuffer.duration, 0.11))
   } else {
+    // Une courte attrape de papier, calée sur la durée du « clic » visuel.
     burst(ctx, {
-      duration: 0.3, type: 'bandpass', frequency: 1500 * pitch, q: 0.55,
-      gain: 0.4 * volume, attack: 0.025, sweepTo: 700 * pitch,
+      duration: 0.11, type: 'bandpass', frequency: 1500 * pitch, q: 0.55,
+      gain: 0.4 * volume, attack: 0.004, sweepTo: 700 * pitch,
     })
     burst(ctx, {
-      duration: 0.18, type: 'highpass', frequency: 2600 * pitch,
-      gain: 0.16 * volume, attack: 0.045,
+      duration: 0.06, type: 'highpass', frequency: 2600 * pitch,
+      gain: 0.16 * volume, attack: 0.006,
     })
   }
   haptic(haptics, 10)

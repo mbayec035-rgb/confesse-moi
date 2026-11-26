@@ -353,8 +353,9 @@ button { cursor: pointer; }
   from { transform: translate3d(0, calc(var(--paper-shift, 0px) - var(--line-step)), 0); }
   to { transform: translate3d(0, var(--paper-shift, 0px), 0); }
 }
-/* Repositionnement doux après un tap sur un mot : 2 px puis retour. */
-.paper-lines.recentering { animation: paper-recenter 300ms ease-out; }
+/* Repositionnement après un tap sur une lettre : 2 px puis retour, très bref
+   pour que le geste réponde comme un clic. */
+.paper-lines.recentering { animation: paper-recenter 110ms ease-out; }
 @keyframes paper-recenter {
   0% { transform: translate3d(0, calc(var(--paper-shift, 0px) + 2px), 0); }
   50% { transform: translate3d(0, calc(var(--paper-shift, 0px) - 1px), 0); }

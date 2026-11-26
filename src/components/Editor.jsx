@@ -296,7 +296,8 @@ export default function Editor({
     playSound('paper-tap', settings)
     cancelScrollMotion()
     selectCell(lineIndex, column, true)
-    animateScrollTo(0, 300)
+    // Retour « clic » : le papier revient en même temps que le son de tap.
+    animateScrollTo(0, 110)
     sceneRef.current?.recenter()
     keepFocus()
   }

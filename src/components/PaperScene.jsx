@@ -454,7 +454,7 @@ const PaperScene = forwardRef(function PaperScene({
     flash() {
       flashRef.current?.animate?.(
         [{ opacity: 0.95 }, { opacity: 0.6, offset: 0.25 }, { opacity: 0 }],
-        { duration: 400, easing: 'ease-out' },
+        { duration: 140, easing: 'ease-out' },
       )
     },
     setTyping(active) {
@@ -493,7 +493,7 @@ const PaperScene = forwardRef(function PaperScene({
       lines.classList.remove('recentering')
       void lines.offsetWidth
       lines.classList.add('recentering')
-      timers.current.push(window.setTimeout(() => lines.classList.remove('recentering'), 340))
+      timers.current.push(window.setTimeout(() => lines.classList.remove('recentering'), 150))
     },
     cancelWheel() {
       if (wheelTimer.current) window.clearTimeout(wheelTimer.current)
