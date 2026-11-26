@@ -58,7 +58,7 @@ export default function App() {
     unlockAudio()
     playSound('insert', settings)
     const now = Date.now()
-    const note = { id: makeId(), title: 'Sans titre', text: '', createdAt: now, updatedAt: now }
+    const note = { id: makeId(), title: 'Sans titre', text: '', stickers: [], createdAt: now, updatedAt: now }
     setNotes((current) => [note, ...current])
     saveNote(note).catch(() => setToast('Sauvegarde impossible.'))
     setActiveId(note.id)
@@ -150,6 +150,7 @@ export default function App() {
               notes={notes}
               settings={settings}
               onChange={(text) => patchNote(activeNote.id, { text })}
+              onStickersChange={(stickers) => patchNote(activeNote.id, { stickers })}
               onRename={(title) => patchNote(activeNote.id, { title })}
               onDelete={removeNote}
               onCreate={createNote}

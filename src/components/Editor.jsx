@@ -1,17 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import PaperScene from './PaperScene.jsx'
 import ToolBar from './ToolBar.jsx'
-import CharmPicker from './CharmPicker.jsx'
+import StickerPicker from './StickerPicker.jsx'
 import PaperSheet from './PaperSheet.jsx'
 import RibbonSheet from './RibbonSheet.jsx'
 import LampSheet from './LampSheet.jsx'
 import NotesSheet from './NotesSheet.jsx'
 import ShareSheet from './ShareSheet.jsx'
-import { playSound, unlockAudio } from '../sounds.js'
+import { disposePaperSounds, playSound, setPaperScrollSpeed, unlockAudio } from '../sounds.js'
 import { caretCell, caretForCell, layoutText, WRITER_COLS } from '../text.js'
 import { shareImage, shareText } from '../share.js'
 
-const HISTORY_ABOVE = 8
+// Une ligne supplémentaire reste rendue au-dessus : elle glisse sous le
+// rouleau au lieu de disparaître d’un coup quand on dépasse la 8e ligne.
+const HISTORY_ABOVE = 9
 const LINES_BELOW = 4
 
 function clamp(value, min, max) {
@@ -23,6 +25,7 @@ export default function Editor({
   notes,
   settings,
   onChange,
+  onStickersChange,
   onRename,
   onDelete,
   onCreate,
@@ -36,6 +39,8 @@ export default function Editor({
   const [sheet, setSheet] = useState(null)
   const [collapsed, setCollapsed] = useState(false)
   const [caret, setCaret] = useState(() => note.text.length)
+  // Lignes remontées au-dessus de la ligne active : 0 = vue de frappe.
+  const [scroll, setScroll] = useState(0)
   const [viewport, setViewport] = useState(() => ({
     width: typeof window === 'undefined' ? 390 : Math.min(window.visualViewport?.width ?? window.innerWidth, 560),
     height: typeof window === 'undefined' ? 844 : (window.visualViewport?.height ?? window.innerHeight),
@@ -45,34 +50,48 @@ export default function Editor({
   const sceneRef = useRef(null)
   const typingTimer = useRef(null)
   const previous = useRef({ lineIndex: 0, length: note.text.length })
+  const scrollRef = useRef(0)
+  const scrollMotion = useRef(null)
+  const activeLineRef = useRef(0)
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
 
   const L = viewport.width
-  // La veilleuse est allumée dès l’ouverture de l’écriture : sans elle,
-  // l’encre noire sur papier sombre serait illisible.
-  const [veilleuseOn, setVeilleuseOn] = useState(true)
-  const lampOn = veilleuseOn
+  // « jour » = lumière allumée : le même interrupteur pilote le Studio et
+  // l’écriture, sans état local qui les désynchronise.
+  const lampOn = settings.mode === 'jour'
 
+  const stickers = Array.isArray(note.stickers) ? note.stickers : []
   const layout = useMemo(() => layoutText(note.text, WRITER_COLS), [note.text])
   const cell = useMemo(() => caretCell(layout, caret), [layout, caret])
-  const first = Math.max(0, cell.lineIndex - HISTORY_ABOVE)
-  const last = Math.min(layout.length - 1, cell.lineIndex + LINES_BELOW)
+  activeLineRef.current = cell.lineIndex
+  // La ligne sous le T pendant le défilement ; à scroll 0, c’est la ligne active.
+  const viewLineIndex = clamp(cell.lineIndex - Math.round(scroll), 0, layout.length - 1)
+  const first = Math.max(0, viewLineIndex - HISTORY_ABOVE)
+  const last = Math.min(layout.length - 1, viewLineIndex + LINES_BELOW)
 
   const contextRaw = useMemo(() => {
     const result = []
     for (let index = first; index <= last; index += 1) {
+      // La vraie ligne active est dessinée par CurrentLine : toutes les autres,
+      // y compris celle sous le rail pendant le défilement, passent par le pli
+      // continu. Aucun changement de nœud au franchissement d’une ligne.
       if (index !== cell.lineIndex) result.push({ index, text: layout[index].text })
     }
     return result
   }, [layout, first, last, cell.lineIndex])
 
-  // Tant que la ligne visée reste la même, le tableau des lignes de contexte
+  // Tant que la fenêtre reste la même, le tableau des lignes de contexte
   // garde la même référence : PaperScene ne re-rend pas ces nœuds.
-  const contextKey = `${cell.lineIndex}|${contextRaw.map((line) => `${line.index}:${line.text}`).join('\u0000')}`
+  const contextKey = `${first}|${last}|${contextRaw.map((line) => `${line.index}:${line.text}`).join('\u0000')}`
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const contextLines = useMemo(() => contextRaw, [contextKey])
 
   const activeText = layout[cell.lineIndex]?.text ?? ''
-  const activeLength = activeText.length
+  const activeLength = layout[cell.lineIndex]?.text.length ?? 0
+  // Le T reste au rail ; la ligne active descend avec le papier pendant le
+  // défilement, donc on masque le curseur dès que le mouvement commence.
+  const showCaret = scroll < 0.02
 
   // Hauteur visible = visualViewport. Le clavier qui s’ouvre recalcule H et
   // toute la scène (en % de H) reste au-dessus de lui.
@@ -115,16 +134,24 @@ export default function Editor({
       lineIndex: caretCell(nextLayout, note.text.length).lineIndex,
       length: note.text.length,
     }
+    if (scrollMotion.current) cancelAnimationFrame(scrollMotion.current)
+    scrollMotion.current = null
+    scrollRef.current = 0
+    setScroll(0)
     textareaRef.current?.focus()
   }, [note.id])
 
-  useEffect(() => () => window.clearTimeout(typingTimer.current), [])
+  useEffect(() => () => {
+    window.clearTimeout(typingTimer.current)
+    if (scrollMotion.current) cancelAnimationFrame(scrollMotion.current)
+    disposePaperSounds()
+  }, [])
 
-  // Seule la ligne visée est touchée dans le DOM ; le curseur est un calque
-  // séparé déplacé par transform, sans réécrire la ligne.
+  // Seule la vraie ligne active est touchée dans le DOM, et jamais pendant un
+  // défilement : sa position suit le papier en continu, ses lettres restent.
   useLayoutEffect(() => {
-    sceneRef.current?.updateCurrentLine(activeText, cell.lineIndex, note.id, cell.column)
-  }, [activeText, cell.lineIndex, cell.column, note.id])
+    sceneRef.current?.updateCurrentLine(activeText, cell.lineIndex, note.id, showCaret ? cell.column : -1)
+  }, [activeText, cell.lineIndex, cell.column, showCaret, note.id])
 
   // Le textarea reste le clavier : sa sélection suit toujours le T.
   useLayoutEffect(() => {
@@ -137,25 +164,141 @@ export default function Editor({
   function commit(nextText, nextCaret) {
     const safeCaret = clamp(nextCaret, 0, nextText.length)
     const nextCell = caretCell(layoutText(nextText, WRITER_COLS), safeCaret)
-    if (nextCell.lineIndex !== previous.current.lineIndex) sceneRef.current?.beginNewLine()
+    if (nextCell.lineIndex !== previous.current.lineIndex) {
+      sceneRef.current?.beginNewLine(
+        nextCell.lineIndex,
+        nextCell.lineIndex > previous.current.lineIndex,
+      )
+    }
     previous.current = { lineIndex: nextCell.lineIndex, length: nextText.length }
     setCaret(safeCaret)
     onChange(nextText)
   }
 
-  function moveCaret(nextCaret) {
+  function moveCaret(nextCaret, silent = false) {
     const safeCaret = clamp(nextCaret, 0, note.text.length)
     const nextCell = caretCell(layout, safeCaret)
-    if (nextCell.lineIndex !== cell.lineIndex) {
+    if (!silent && nextCell.lineIndex !== cell.lineIndex) {
       sceneRef.current?.scrollLines(Math.sign(nextCell.lineIndex - cell.lineIndex))
     }
     previous.current = { lineIndex: nextCell.lineIndex, length: note.text.length }
     setCaret(safeCaret)
   }
 
-  function selectCell(lineIndex, column) {
+  function selectCell(lineIndex, column, silent = false) {
     const safeLine = clamp(lineIndex, 0, layout.length - 1)
-    moveCaret(caretForCell(layout, safeLine, column))
+    moveCaret(caretForCell(layout, safeLine, column), silent)
+  }
+
+  function cancelScrollMotion() {
+    if (scrollMotion.current) cancelAnimationFrame(scrollMotion.current)
+    scrollMotion.current = null
+  }
+
+  // Résistance aux extrémités : le doigt peut dépasser d’un peu, puis rebondit.
+  function applyScrollLimits(value) {
+    const max = Math.max(0, activeLineRef.current)
+    const current = scrollRef.current
+    let next = value
+    if (current >= 0 && next < 0) next *= 0.3
+    else if (current <= max && next > max) next = max + (next - max) * 0.3
+    return clamp(next, -0.6, max + 0.6)
+  }
+
+  function setScrollValue(value) {
+    const previousValue = scrollRef.current
+    if (Math.abs(value - previousValue) < 0.0001) return
+    scrollRef.current = value
+    setScroll(value)
+    setPaperScrollSpeed(value - previousValue, settingsRef.current)
+  }
+
+  function finishScroll() {
+    setPaperScrollSpeed(0, settingsRef.current)
+  }
+
+  function animateScrollTo(target, duration) {
+    cancelScrollMotion()
+    // Une molette peut encore avoir un retour d’inertie en attente.
+    sceneRef.current?.cancelWheel?.()
+    const from = scrollRef.current
+    if (Math.abs(from - target) < 0.001) {
+      setScrollValue(target)
+      finishScroll()
+      return
+    }
+    let start = null
+    const step = (now) => {
+      if (start === null) start = now
+      const progress = clamp((now - start) / duration, 0, 1)
+      const eased = 1 - (1 - progress) ** 3
+      setScrollValue(from + (target - from) * eased)
+      if (progress < 1) scrollMotion.current = requestAnimationFrame(step)
+      else {
+        scrollMotion.current = null
+        setScrollValue(target)
+        finishScroll()
+      }
+    }
+    scrollMotion.current = requestAnimationFrame(step)
+  }
+
+  function scrollByLines(delta) {
+    cancelScrollMotion()
+    setScrollValue(applyScrollLimits(scrollRef.current + delta))
+  }
+
+  function endScroll(velocity) {
+    cancelScrollMotion()
+    const max = Math.max(0, activeLineRef.current)
+    const value = scrollRef.current
+    if (value < -0.01 || value > max + 0.01) {
+      animateScrollTo(clamp(value, 0, max), 300)
+      return
+    }
+    let speed = clamp(velocity, -20, 20)
+    if (Math.abs(speed) < 0.01) {
+      setScrollValue(clamp(value, 0, max))
+      finishScroll()
+      return
+    }
+    let position = value
+    const step = () => {
+      speed *= 0.95
+      const wasOutside = position < -0.01 || position > max + 0.01
+      let next = position + speed
+      if (next > max) {
+        next = Math.min(next, max + 0.6)
+        speed = (max - next) * 0.25
+      } else if (next < 0) {
+        next = Math.max(next, -0.6)
+        speed = -next * 0.25
+      } else if (wasOutside) {
+        // Retour dans la plage : on s’arrête sur la limite, sans la dépasser.
+        next = clamp(next, 0, max)
+        speed = 0
+      }
+      position = next
+      setScrollValue(position)
+      if (Math.abs(speed) < 0.01 && position >= 0 && position <= max) {
+        scrollMotion.current = null
+        setScrollValue(position)
+        finishScroll()
+        return
+      }
+      scrollMotion.current = requestAnimationFrame(step)
+    }
+    scrollMotion.current = requestAnimationFrame(step)
+  }
+
+  function wordTap(lineIndex, column) {
+    unlockAudio()
+    playSound('paper-tap', settings)
+    cancelScrollMotion()
+    selectCell(lineIndex, column, true)
+    animateScrollTo(0, 300)
+    sceneRef.current?.recenter()
+    keepFocus()
   }
 
   function keepFocus() {
@@ -167,6 +310,7 @@ export default function Editor({
 
   function handleKeyDown(event) {
     unlockAudio()
+    if (Math.abs(scrollRef.current) > 0.01) animateScrollTo(0, 300)
     if (event.isComposing || event.key === 'Process') return
     if (event.metaKey || event.ctrlKey || event.altKey) return
 
@@ -215,21 +359,26 @@ export default function Editor({
 
   // Entrée éventuelle d’un clavier mobile / IME qui n’a pas envoyé de key.
   function handleChange(event) {
+    if (Math.abs(scrollRef.current) > 0.01) animateScrollTo(0, 300)
     commit(event.target.value, event.target.selectionStart ?? event.target.value.length)
   }
 
   function toggleLamp() {
     unlockAudio()
     playSound('lamp', settings)
-    setVeilleuseOn(!lampOn)
-    updateSettings({ mode: lampOn ? 'jour' : 'nuit' })
+    updateSettings({ mode: lampOn ? 'nuit' : 'jour' })
   }
 
-  function toggleCharm(id) {
-    const next = settings.charms.includes(id)
-      ? settings.charms.filter((charm) => charm !== id)
-      : [...settings.charms, id]
-    updateSettings({ charms: next })
+  function addSticker(id) {
+    const rotation = Number((Math.random() * 12 - 6).toFixed(2))
+    onStickersChange?.([...stickers, { ligne: cell.lineIndex, id, rotation }])
+    setSheet(null)
+    keepFocus()
+  }
+
+  function removeSticker(index) {
+    onStickersChange?.(stickers.filter((_, position) => position !== index))
+    keepFocus()
   }
 
   async function handleShare(kind) {
@@ -252,7 +401,7 @@ export default function Editor({
   }
 
   return (
-    <main className="screen writer-screen" onPointerDown={unlockAudio}>
+    <main className={`screen writer-screen ${lampOn ? 'lamp-on' : 'lamp-off'}`} onPointerDown={unlockAudio}>
       <header className="writer-header">
         <button type="button" className="icon-button" onClick={onBack} aria-label="Retour à la Boîte">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -277,13 +426,19 @@ export default function Editor({
         grain={settings.grain}
         L={L}
         contextLines={contextLines}
+        stickers={stickers}
+        onRemoveSticker={removeSticker}
+        scroll={scroll}
+        onScrollBy={scrollByLines}
+        onScrollEnd={endScroll}
+        onWordTap={wordTap}
         activeLineIndex={cell.lineIndex}
         activeLineText={activeText}
         activeLineLength={activeLength}
         caretColumn={cell.column}
         lineCount={layout.length}
+        H={viewport.height}
         interactive
-        onToggleLamp={toggleLamp}
         onSelectCell={selectCell}
         onGoToEnd={() => moveCaret(note.text.length)}
         onKeepFocus={keepFocus}
@@ -296,6 +451,8 @@ export default function Editor({
         activeTool={sheet}
         lampOn={lampOn}
         onTool={handleTool}
+        onLampToggle={toggleLamp}
+        onLampSettings={() => setSheet('lampe')}
       />
 
       {/* Le clavier tape ici ; le texte affiché vit dans PaperScene. */}
@@ -323,7 +480,7 @@ export default function Editor({
           onClose={() => setSheet(null)}
         />
       )}
-      {sheet === 'jardin' && <CharmPicker selected={settings.charms} onToggle={toggleCharm} onClose={() => setSheet(null)} />}
+      {sheet === 'jardin' && <StickerPicker onPick={addSticker} onClose={() => setSheet(null)} />}
       {sheet === 'papier' && <PaperSheet settings={settings} updateSettings={updateSettings} onClose={() => setSheet(null)} />}
       {sheet === 'ruban' && <RibbonSheet settings={settings} updateSettings={updateSettings} onClose={() => setSheet(null)} />}
       {sheet === 'lampe' && (

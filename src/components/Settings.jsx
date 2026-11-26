@@ -22,7 +22,8 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
   const [persisted, setPersisted] = useState(false)
   const fileRef = useRef(null)
   const capsule = getCapsule(settings.capsuleId)
-  const lampOn = settings.mode === 'nuit'
+  // « jour » = lumière allumée, comme dans l’écriture.
+  const lampOn = settings.mode === 'jour'
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => {})
@@ -44,7 +45,7 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
   function toggleLamp() {
     unlockAudio()
     playSound('lamp', settings)
-    updateSettings({ mode: lampOn ? 'jour' : 'nuit' })
+    updateSettings({ mode: lampOn ? 'nuit' : 'jour' })
   }
 
   async function handleFile(event) {
@@ -157,6 +158,17 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
 
       <section className="settings-section">
         <h2>Son et toucher</h2>
+        <Toggle
+          checked={settings.sound.active !== false}
+          onChange={() => {
+            const active = settings.sound.active === false
+            unlockAudio()
+            updateSettings({ sound: { ...settings.sound, active } })
+            if (active) playSound('paper-tap', { ...settings, sound: { ...settings.sound, active } })
+          }}
+          label="Sons"
+          description="Frisottis du papier et défilement"
+        />
         <Range label="Volume" value={settings.sound.volume} min={0} max={1} step={0.05} display={`${Math.round(settings.sound.volume * 100)} %`} onChange={(volume) => updateSettings({ sound: { ...settings.sound, volume } })} />
         <div className="setting-block">
           <span className="setting-label">Type de frappe</span>

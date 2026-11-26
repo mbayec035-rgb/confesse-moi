@@ -21,7 +21,7 @@ export default function LampSheet({ settings, updateSettings, updateLamp, lampOn
           aria-pressed={lampOn}
         >
           <span className="switch-knob" />
-          <span>{lampOn ? 'Lampe allumée · nuit' : 'Lampe éteinte · jour'}</span>
+          <span>{lampOn ? 'Lampe allumée · jour' : 'Lampe éteinte · nuit'}</span>
         </button>
 
         <Range label="Luminosité" value={settings.lamp.luminosite} min={0.1} max={1} step={0.05} display={`${Math.round(settings.lamp.luminosite * 100)} %`} onChange={(luminosite) => updateLamp({ luminosite })} />

@@ -1,5 +1,14 @@
 // Synthèse audio Web Audio : aucun fichier protégé, tout fonctionne hors ligne.
+// Les sons de papier peuvent être remplacés par /assets/sounds/paper-tap.mp3
+// et /assets/sounds/paper-scroll.mp3 ; la synthèse sert de repli.
 let context = null
+let paperTapBuffer = null
+let paperScrollBuffer = null
+let loadingPaper = false
+
+let scrollVoice = null
+let scrollGain = null
+let scrollFilter = null
 
 export function unlockAudio() {
   if (!context && typeof window !== 'undefined') {
@@ -8,10 +17,34 @@ export function unlockAudio() {
     context = new AudioContext()
   }
   if (context?.state === 'suspended') context.resume().catch(() => {})
+  if (context && !loadingPaper) {
+    loadingPaper = true
+    loadPaperSounds().catch(() => {})
+  }
 }
 
 function audio() {
   return context && context.state !== 'closed' ? context : null
+}
+
+async function loadClip(url) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`Audio indisponible : ${url}`)
+  return context.decodeAudioData(await response.arrayBuffer())
+}
+
+async function loadPaperSounds() {
+  const ctx = audio()
+  if (!ctx) return
+  const [tap, scroll] = await Promise.allSettled([
+    loadClip('/assets/sounds/paper-tap.mp3'),
+    loadClip('/assets/sounds/paper-scroll.mp3'),
+  ])
+  if (tap.status === 'fulfilled') paperTapBuffer = tap.value
+  if (scroll.status === 'fulfilled') {
+    paperScrollBuffer = scroll.value
+    if (scrollVoice) scrollVoice.buffer = scroll.value
+  }
 }
 
 function noiseBuffer(ctx, duration) {
@@ -19,6 +52,20 @@ function noiseBuffer(ctx, duration) {
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
   const data = buffer.getChannelData(0)
   for (let index = 0; index < length; index += 1) data[index] = Math.random() * 2 - 1
+  return buffer
+}
+
+// Bruit de boucle sans clic à la jointure : la fin rejoint le début.
+function scrollNoise(ctx) {
+  const length = Math.floor(ctx.sampleRate * 1.2)
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let index = 0; index < length; index += 1) data[index] = (Math.random() * 2 - 1) * 0.7
+  const fade = Math.floor(ctx.sampleRate * 0.02)
+  for (let index = 0; index < fade; index += 1) {
+    const ratio = index / fade
+    data[length - fade + index] = data[length - fade + index] * (1 - ratio) + data[index] * ratio
+  }
   return buffer
 }
 
@@ -59,20 +106,112 @@ function haptic(enabled, pattern) {
   if (enabled && navigator.vibrate) navigator.vibrate(pattern)
 }
 
+function soundSettings(settings) {
+  const sound = settings?.sound ?? {}
+  const volume = Math.max(0, Math.min(1, sound.volume ?? 0.7))
+  return { sound, volume, enabled: sound.active !== false && volume > 0, haptics: Boolean(sound.haptiques) }
+}
+
 const PROFILES = {
   sec: { frequency: 2100, q: 1.1, tone: 190, gain: 0.42, duration: 0.05 },
   doux: { frequency: 1150, q: 0.8, tone: 120, gain: 0.34, duration: 0.062 },
   claquant: { frequency: 2800, q: 1.6, tone: 260, gain: 0.48, duration: 0.042 },
 }
 
+// ±5 % : assez pour éviter l’effet répétitif, sans changer le caractère du son.
+function paperPitch() {
+  return 0.95 + Math.random() * 0.1
+}
+
+function playPaperTap(ctx, volume, haptics) {
+  const pitch = paperPitch()
+  if (paperTapBuffer) {
+    const source = ctx.createBufferSource()
+    source.buffer = paperTapBuffer
+    source.playbackRate.value = pitch
+    const gain = ctx.createGain()
+    gain.gain.value = 0.4 * volume
+    source.connect(gain).connect(ctx.destination)
+    source.start()
+    source.stop(ctx.currentTime + Math.min(paperTapBuffer.duration, 0.35))
+  } else {
+    burst(ctx, {
+      duration: 0.3, type: 'bandpass', frequency: 1500 * pitch, q: 0.55,
+      gain: 0.4 * volume, attack: 0.025, sweepTo: 700 * pitch,
+    })
+    burst(ctx, {
+      duration: 0.18, type: 'highpass', frequency: 2600 * pitch,
+      gain: 0.16 * volume, attack: 0.045,
+    })
+  }
+  haptic(haptics, 10)
+}
+
+function ensureScrollVoice(ctx) {
+  if (scrollVoice) return
+  const source = ctx.createBufferSource()
+  source.buffer = paperScrollBuffer ?? scrollNoise(ctx)
+  source.loop = true
+  source.playbackRate.value = paperPitch()
+  const filter = ctx.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.value = 900
+  filter.Q.value = 0.5
+  const gain = ctx.createGain()
+  gain.gain.value = 0.0001
+  source.connect(filter).connect(gain).connect(ctx.destination)
+  source.start()
+  scrollVoice = source
+  scrollFilter = filter
+  scrollGain = gain
+}
+
+// Vitesse en lignes par frame ; le gain suit la vitesse et revient au silence.
+export function setPaperScrollSpeed(speed, settings) {
+  const ctx = audio()
+  if (!ctx) return
+  const { sound, volume, enabled } = soundSettings(settings)
+  const target = Math.min(1, Math.abs(speed) / 10)
+  if (!enabled || target < 0.01) {
+    stopPaperScroll()
+    return
+  }
+  ensureScrollVoice(ctx)
+  const now = ctx.currentTime
+  scrollGain.gain.setTargetAtTime(0.4 * volume * 0.45 * target, now, 0.04)
+  scrollFilter.frequency.setTargetAtTime(700 + target * 900, now, 0.08)
+}
+
+export function stopPaperScroll() {
+  const ctx = audio()
+  if (!ctx || !scrollGain) return
+  scrollGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03)
+}
+
+export function disposePaperSounds() {
+  stopPaperScroll()
+  if (scrollVoice) {
+    try { scrollVoice.stop() } catch { /* déjà arrêtée */ }
+    scrollVoice.disconnect()
+    scrollFilter?.disconnect()
+    scrollGain?.disconnect()
+  }
+  scrollVoice = null
+  scrollFilter = null
+  scrollGain = null
+}
+
 export function playSound(kind, settings) {
   const ctx = audio()
   if (!ctx) return
-  const sound = settings?.sound ?? {}
-  const volume = Math.max(0, Math.min(1, sound.volume ?? 0.7))
-  if (volume === 0) return
-  const haptics = Boolean(sound.haptiques)
+  const { sound, volume, enabled, haptics } = soundSettings(settings)
+  if (!enabled) return
   const variation = 0.92 + Math.random() * 0.16
+
+  if (kind === 'paper-tap') {
+    playPaperTap(ctx, volume, haptics)
+    return
+  }
 
   if (kind === 'key') {
     const profile = PROFILES[sound.type] ?? PROFILES.sec

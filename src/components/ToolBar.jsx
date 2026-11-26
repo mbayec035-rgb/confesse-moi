@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }
 
 function Icon({ id }) {
@@ -11,13 +13,36 @@ function Icon({ id }) {
 
 const TOOLS = [
   { id: 'boite', label: 'Boîte' },
-  { id: 'jardin', label: 'Breloques et jardin' },
+  { id: 'jardin', label: 'Autocollants' },
   { id: 'papier', label: 'Papier et encre' },
   { id: 'ruban', label: 'Ruban et encre' },
   { id: 'lampe', label: 'Veilleuse' },
 ]
 
-export default function ToolBar({ collapsed, onToggleCollapse, activeTool, lampOn, onTool }) {
+export default function ToolBar({ collapsed, onToggleCollapse, activeTool, lampOn, onTool, onLampToggle, onLampSettings }) {
+  // Le clic bascule la lampe ; le double-clic ouvre les réglages. On retarde
+  // le clic pour pouvoir l’annuler quand le double-clic arrive.
+  const lampTimer = useRef(null)
+  useEffect(() => () => {
+    if (lampTimer.current) window.clearTimeout(lampTimer.current)
+  }, [])
+
+  function scheduleLamp() {
+    if (lampTimer.current) window.clearTimeout(lampTimer.current)
+    lampTimer.current = window.setTimeout(() => {
+      lampTimer.current = null
+      onLampToggle?.()
+    }, 260)
+  }
+
+  function openLampSettings() {
+    if (lampTimer.current) {
+      window.clearTimeout(lampTimer.current)
+      lampTimer.current = null
+    }
+    onLampSettings?.()
+  }
+
   return (
     <nav className={`tool-pill ${collapsed ? 'collapsed' : ''}`} aria-label="Outils d’écriture">
       <button
@@ -31,18 +56,23 @@ export default function ToolBar({ collapsed, onToggleCollapse, activeTool, lampO
       </button>
       {!collapsed && (
         <div className="tool-icons">
-          {TOOLS.map((tool) => (
-            <button
-              type="button"
-              key={tool.id}
-              className={`tool-icon ${activeTool === tool.id || (tool.id === 'lampe' && lampOn) ? 'active' : ''}`}
-              onClick={() => onTool(tool.id)}
-              aria-label={tool.label}
-              title={tool.label}
-            >
-              <Icon id={tool.id} />
-            </button>
-          ))}
+          {TOOLS.map((tool) => {
+            const isLamp = tool.id === 'lampe'
+            return (
+              <button
+                type="button"
+                key={tool.id}
+                className={`tool-icon ${activeTool === tool.id || (isLamp && lampOn) ? 'active' : ''}`}
+                onClick={() => (isLamp ? scheduleLamp() : onTool(tool.id))}
+                onDoubleClick={isLamp ? (event) => { event.preventDefault(); openLampSettings() } : undefined}
+                aria-label={tool.label}
+                aria-pressed={isLamp ? lampOn : undefined}
+                title={isLamp ? `${lampOn ? 'Éteindre' : 'Allumer'} la veilleuse · double-clic : réglages` : tool.label}
+              >
+                <Icon id={tool.id} />
+              </button>
+            )
+          })}
           <span className="tool-separator" aria-hidden="true" />
           <button
             type="button"
