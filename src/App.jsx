@@ -142,6 +142,7 @@ export default function App() {
               onOpen={(id) => { setActiveId(id); setTab('ecrire') }}
               onRename={(id, title) => patchNote(id, { title })}
               onDelete={removeNote}
+              onSign={(id, stickerId) => patchNote(id, { signature: stickerId })}
             />
           )}
           {tab === 'ecrire' && activeNote && (

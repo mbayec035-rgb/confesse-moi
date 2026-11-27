@@ -729,11 +729,10 @@ const PaperScene = forwardRef(function PaperScene({
           <span className="paper-heart" style={{ color: heartCharm?.couleur }} aria-hidden="true">♥</span>
         )}
         <div className="paper-vignette" aria-hidden="true" />
-        {/* Faisceau et source : enfants de la feuille, clipés par son overflow. */}
+        {/* Faisceau : enfant de la feuille, clipé par son overflow. */}
         <div className="beam-anchor" aria-hidden="true">
           <div className="beam-blur"><div className="beam-layer" /></div>
         </div>
-        <div className="tip-glow" aria-hidden="true" />
       </div>
 
       {/* Le texte est un calque au-dessus du chariot : la pointe en T et la

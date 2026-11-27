@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import PaperScene from './PaperScene.jsx'
-import MachineDecor from './MachineDecor.jsx'
 import CapsulePicker from './CapsulePicker.jsx'
 import CharmPicker from './CharmPicker.jsx'
 import { BEAM_SHAPES, LAMP_COLORS, PAPER_COLORS, TYPING_MODES, TYPING_TYPES, getCapsule } from '../data.js'
@@ -63,7 +62,7 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
   const previewSettings = { ...settings, fontSize: 12, lineHeight: 1.5 }
 
   return (
-    <main className="screen settings-screen">
+    <main className={`screen settings-screen ${lampOn ? 'lamp-on' : 'lamp-off'}`}>
       <header className="app-header">
         <h1>Studio</h1>
         <p>Réglages de la page, du ruban, de la lampe et du son.</p>
@@ -71,9 +70,6 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
 
       <section className="settings-section">
         <h2>Aperçu</h2>
-        {settings.afficherMachine && (
-          <div className="studio-machine"><MachineDecor capsuleColor={capsule.couleur} /></div>
-        )}
         <div className="preview-wrap">
           <PaperScene
             seed="apercu-studio"
@@ -144,16 +140,6 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
         <Range label="Portée de la lumière" value={settings.lamp.portee} min={20} max={100} display={`${settings.lamp.portee} %`} onChange={(portee) => updateLamp({ portee })} />
         <Range label="Angle du faisceau" value={settings.lamp.angle} min={60} max={120} display={`${settings.lamp.angle}°`} onChange={(angle) => updateLamp({ angle })} />
         <p className="section-note">Le faisceau naît de la pointe en T : il suit la capsule et s’incline vers le centre de la feuille. Aucune lampe n’est dessinée.</p>
-      </section>
-
-      <section className="settings-section">
-        <h2>Machine décorative</h2>
-        <Toggle
-          checked={settings.afficherMachine}
-          onChange={() => updateSettings({ afficherMachine: !settings.afficherMachine })}
-          label="Afficher la machine"
-          description="Sur l’Accueil et le Studio uniquement — jamais sur l’écriture"
-        />
       </section>
 
       <section className="settings-section">

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { excerpt, formatDate } from '../text.js'
-import { APP_NAME, getCapsule } from '../data.js'
+import { APP_NAME, getCapsule, getSticker } from '../data.js'
 import MachineDecor from './MachineDecor.jsx'
+import StickerPicker from './StickerPicker.jsx'
 
 // Ornements dessinés à la main : aucune police d’icônes ni emoji Unicode.
 function BotanicalSprig({ className = '' }) {
@@ -29,6 +30,22 @@ function NotesIcon() {
   )
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <circle cx="10.6" cy="10.6" r="6.2" />
+      <path d="m15.2 15.2 4.4 4.4" />
+    </svg>
+  )
+}
+
+function fold(value) {
+  return String(value ?? '')
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function ArchiveIllustration() {
   return (
     <svg viewBox="0 0 150 126" aria-hidden="true" className="empty-illustration">
@@ -47,15 +64,43 @@ function ArchiveIllustration() {
   )
 }
 
-export default function Home({ notes, settings, onOpen, onCreate, onRename, onDelete }) {
+export default function Home({ notes, settings, onOpen, onCreate, onRename, onDelete, onSign }) {
   const [menuId, setMenuId] = useState(null)
   const [renamingId, setRenamingId] = useState(null)
   const [draftTitle, setDraftTitle] = useState('')
+  const [signingId, setSigningId] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const needle = fold(query).trim()
+  const visibleNotes = needle
+    ? notes.filter((note) => fold(`${note.title} ${note.text}`).includes(needle))
+    : notes
+
+  function toggleSearch() {
+    if (searchOpen) setQuery('')
+    setSearchOpen(!searchOpen)
+  }
+
+  function clearSearch() {
+    setQuery('')
+    setSearchOpen(false)
+  }
 
   function startRename(note) {
     setDraftTitle(note.title)
     setRenamingId(note.id)
     setMenuId(null)
+  }
+
+  function startSigning(id) {
+    setSigningId(id)
+    setMenuId(null)
+  }
+
+  function pickSignature(stickerId) {
+    onSign?.(signingId, stickerId)
+    setSigningId(null)
   }
 
   function commitRename(id) {
@@ -73,7 +118,32 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
           <p>{notes.length ? `${notes.length} ${notes.length > 1 ? 'confessions' : 'confession'}` : 'Tes pages, à l’abri.'}</p>
         </div>
         <BotanicalSprig className="home-sprig" />
+        <button
+          type="button"
+          className="icon-button home-search-button"
+          onClick={toggleSearch}
+          aria-label={searchOpen ? 'Fermer la recherche' : 'Rechercher une note'}
+          aria-expanded={searchOpen}
+        >
+          <SearchIcon />
+        </button>
       </header>
+
+      {searchOpen && (
+        <div className="home-search">
+          <input
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Escape') clearSearch() }}
+            placeholder="Chercher dans tes notes…"
+            aria-label="Rechercher dans les notes"
+          />
+          {query && (
+            <button type="button" className="icon-button" onClick={() => setQuery('')} aria-label="Effacer la recherche">✕</button>
+          )}
+        </div>
+      )}
 
       {settings.afficherMachine && (
         <div className="home-machine"><MachineDecor capsuleColor={getCapsule(settings.capsuleId).couleur} /></div>
@@ -86,14 +156,20 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
           <p>Une note, un souffle, un secret. Tout reste sur ton téléphone.</p>
           <button type="button" className="primary-button" onClick={onCreate}>Écrire une première note</button>
         </div>
+      ) : visibleNotes.length === 0 ? (
+        <div className="empty-state home-search-empty">
+          <h2>Aucune note trouvée.</h2>
+          <p>Essaie un autre mot ou efface la recherche.</p>
+          <button type="button" className="primary-button small" onClick={() => setQuery('')}>Effacer la recherche</button>
+        </div>
       ) : (
         <>
           <div className="archive-divider" aria-hidden="true">
             <BotanicalSprig className="divider-sprig" />
-            <span>Archives</span>
+            <span>{needle ? 'Résultats' : 'Archives'}</span>
           </div>
           <div className="note-list">
-          {notes.map((note, index) => (
+          {visibleNotes.map((note, index) => (
             <article className="note-card" key={note.id} onClick={() => renamingId !== note.id && onOpen(note.id)}>
               <span className="note-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
               {renamingId === note.id ? (
@@ -113,7 +189,20 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
               ) : (
                 <>
                   <div className="note-card-top">
-                    <h2>{note.title || 'Sans titre'}</h2>
+                    <div className="note-title-group">
+                      <h2>{note.title || 'Sans titre'}</h2>
+                      {note.signature && (
+                        <button
+                          type="button"
+                          className="note-signature"
+                          onClick={(event) => { event.stopPropagation(); startSigning(note.id) }}
+                          aria-label="Changer la signature"
+                          title={`Signée : ${getSticker(note.signature).label}`}
+                        >
+                          <img src={getSticker(note.signature).image} alt="" draggable="false" />
+                        </button>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="icon-button"
@@ -132,6 +221,14 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
                     <div className="note-menu" onClick={(event) => event.stopPropagation()}>
                       <button type="button" onClick={() => onOpen(note.id)}>Ouvrir</button>
                       <button type="button" onClick={() => startRename(note)}>Renommer</button>
+                      <button type="button" onClick={() => startSigning(note.id)}>
+                        {note.signature ? 'Changer la signature' : 'Signer la note'}
+                      </button>
+                      {note.signature && (
+                        <button type="button" onClick={() => { setMenuId(null); onSign?.(note.id, null) }}>
+                          Retirer la signature
+                        </button>
+                      )}
                       <button type="button" className="danger" onClick={() => { setMenuId(null); onDelete(note.id) }}>Supprimer</button>
                     </div>
                   )}
@@ -141,6 +238,14 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
           ))}
           </div>
         </>
+      )}
+      {signingId && (
+        <StickerPicker
+          title="Signer la note"
+          description="Choisis un marqueur pour la signaler."
+          onPick={pickSignature}
+          onClose={() => setSigningId(null)}
+        />
       )}
       <p className="home-footer">Rien ne quitte cet appareil.</p>
     </main>
