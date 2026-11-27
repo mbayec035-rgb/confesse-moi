@@ -198,8 +198,6 @@ button { cursor: pointer; }
 .icon-button.danger { color: var(--danger); }
 
 /* ---------- Accueil ---------- */
-.home-machine { display: flex; justify-content: center; margin: -8px 0 18px; }
-.machine-decor { width: min(78%, 300px); height: auto; filter: drop-shadow(0 8px 12px rgba(0,0,0,.22)); }
 .empty-state { text-align: center; padding: 30px 8px; }
 .empty-illustration { width: 132px; margin-bottom: 16px; }
 .empty-state h2 { font-size: 21px; margin: 0 0 10px; }
@@ -328,8 +326,10 @@ button { cursor: pointer; }
 /* Ligne de frappe à 35 % H : 36 % de la hauteur de la feuille au-dessus du rail. */
 .paper-lines {
   position: absolute; left: var(--grid-left, 21%); width: calc(var(--col-width) * var(--writer-cols, 21));
-  /* Ligne de frappe à 14 % de L au-dessus du centre du rail. */
-  top: 19.5%; bottom: calc(58.3% + var(--L) * .0875);
+  /* Le calque descend jusqu’au bord bas de la feuille (44 % H) et garde le
+     texte dedans, même quand on revient vers les lignes récentes. */
+  top: 19.5%; bottom: 56%;
+  overflow: hidden;
   z-index: 3;
   pointer-events: none;
   user-select: none;
@@ -338,6 +338,12 @@ button { cursor: pointer; }
   opacity: 1;                       /* jamais de transparence sur la ligne active */
   transform: translate3d(0, var(--paper-shift, 0px), 0);
   transition: transform 160ms ease-out;
+}
+/* Le calque intérieur compense l’agrandissement du cadre : les lignes gardent
+   exactement leur position d’origine, seule la limite basse change. */
+.paper-lines-inner {
+  position: absolute; inset: 0;
+  transform: translate3d(0, calc(-1 * var(--paper-overflow, 0px)), 0);
 }
 .paper-lines.rising { transform: translate3d(0, calc(var(--paper-shift, 0px) + var(--line-step)), 0); transition: none; }
 .paper-lines.rolling-forward { animation: roll-forward 220ms ease-out; }
@@ -591,7 +597,8 @@ button { cursor: pointer; }
 .section-note { color: var(--muted); font-size: 12px; margin: -4px 0 14px; line-height: 1.5; }
 .preview-wrap { position: relative; max-width: 100%; height: 190px; margin: 0 0 14px; border-radius: 16px; overflow: hidden; }
 .preview-wrap .writer-stage { inset: 0; border-radius: 16px; }
-.preview-wrap .paper-lines { top: 19.5%; bottom: 55%; }
+.preview-wrap .paper-lines { top: 19.5%; bottom: 55%; overflow: visible; }
+.preview-wrap .paper-lines-inner { transform: none; }
 .preview-wrap .capsule-carriage, .preview-wrap .type-flash { display: none; }
 .setting-block { margin-bottom: 16px; }
 .setting-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 9px; color: var(--ink); }
@@ -836,19 +843,6 @@ html:has(.home-screen),
 }
 .screen.home-screen .home-search input::placeholder { color: var(--home-muted); opacity: .75; }
 .screen.home-screen .home-search .icon-button { min-width: 28px; min-height: 28px; padding: 2px; font-size: 13px; }
-
-.screen.home-screen .home-machine {
-  display: flex; justify-content: center;
-  margin: -4px 0 24px;
-  padding: 12px 8px;
-  border: 1px solid var(--home-line);
-  border-radius: 2px;
-  background: rgba(0, 0, 0, .09);
-}
-.screen.home-screen .machine-decor {
-  width: min(72%, 258px);
-  filter: sepia(.32) saturate(.82) brightness(1.04);
-}
 
 .screen.home-screen .archive-divider {
   display: flex; align-items: center; justify-content: center; gap: 12px;

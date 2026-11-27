@@ -195,14 +195,23 @@ export default function Editor({
     scrollMotion.current = null
   }
 
+  // Bornes du papier : vers le haut jusqu’à la ligne du curseur, vers le bas
+  // jusqu’à la dernière ligne de la note. Un tap sur un mot déplace le curseur
+  // vers le haut ; sans borne basse, on ne pouvait plus revenir aux lignes
+  // récentes qui se trouvent alors sous le T.
+  function scrollBounds() {
+    const active = clamp(activeLineRef.current, 0, Math.max(0, layout.length - 1))
+    return { min: Math.min(0, active - (layout.length - 1)), max: Math.max(0, active) }
+  }
+
   // Résistance aux extrémités : le doigt peut dépasser d’un peu, puis rebondit.
   function applyScrollLimits(value) {
-    const max = Math.max(0, activeLineRef.current)
+    const { min, max } = scrollBounds()
     const current = scrollRef.current
     let next = value
-    if (current >= 0 && next < 0) next *= 0.3
+    if (current >= min && next < min) next = min + (next - min) * 0.3
     else if (current <= max && next > max) next = max + (next - max) * 0.3
-    return clamp(next, -0.6, max + 0.6)
+    return clamp(next, min - 0.6, max + 0.6)
   }
 
   function setScrollValue(value) {
@@ -250,37 +259,37 @@ export default function Editor({
 
   function endScroll(velocity) {
     cancelScrollMotion()
-    const max = Math.max(0, activeLineRef.current)
+    const { min, max } = scrollBounds()
     const value = scrollRef.current
-    if (value < -0.01 || value > max + 0.01) {
-      animateScrollTo(clamp(value, 0, max), 300)
+    if (value < min - 0.01 || value > max + 0.01) {
+      animateScrollTo(clamp(value, min, max), 300)
       return
     }
     let speed = clamp(velocity, -20, 20)
     if (Math.abs(speed) < 0.01) {
-      setScrollValue(clamp(value, 0, max))
+      setScrollValue(clamp(value, min, max))
       finishScroll()
       return
     }
     let position = value
     const step = () => {
       speed *= 0.95
-      const wasOutside = position < -0.01 || position > max + 0.01
+      const wasOutside = position < min - 0.01 || position > max + 0.01
       let next = position + speed
       if (next > max) {
         next = Math.min(next, max + 0.6)
         speed = (max - next) * 0.25
-      } else if (next < 0) {
-        next = Math.max(next, -0.6)
-        speed = -next * 0.25
+      } else if (next < min) {
+        next = Math.max(next, min - 0.6)
+        speed = (min - next) * 0.25
       } else if (wasOutside) {
         // Retour dans la plage : on s’arrête sur la limite, sans la dépasser.
-        next = clamp(next, 0, max)
+        next = clamp(next, min, max)
         speed = 0
       }
       position = next
       setScrollValue(position)
-      if (Math.abs(speed) < 0.01 && position >= 0 && position <= max) {
+      if (Math.abs(speed) < 0.01 && position >= min && position <= max) {
         scrollMotion.current = null
         setScrollValue(position)
         finishScroll()

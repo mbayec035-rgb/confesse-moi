@@ -194,7 +194,6 @@ export const DEFAULT_SETTINGS = {
   typingMode: 'ecraser',
   capsuleId: 'classique',
   charms: [],
-  afficherMachine: false,
   sound: {
     active: true,
     volume: 0.7,

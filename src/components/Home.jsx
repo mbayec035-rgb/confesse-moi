@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { excerpt, formatDate } from '../text.js'
-import { APP_NAME, getCapsule, getSticker } from '../data.js'
-import MachineDecor from './MachineDecor.jsx'
+import { APP_NAME, getSticker } from '../data.js'
 import StickerPicker from './StickerPicker.jsx'
 
 // Ornements dessinés à la main : aucune police d’icônes ni emoji Unicode.
@@ -143,10 +142,6 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
             <button type="button" className="icon-button" onClick={() => setQuery('')} aria-label="Effacer la recherche">✕</button>
           )}
         </div>
-      )}
-
-      {settings.afficherMachine && (
-        <div className="home-machine"><MachineDecor capsuleColor={getCapsule(settings.capsuleId).couleur} /></div>
       )}
 
       {notes.length === 0 ? (

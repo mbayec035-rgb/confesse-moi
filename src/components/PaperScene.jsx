@@ -643,6 +643,9 @@ const PaperScene = forwardRef(function PaperScene({
     if (!stage || !lines) return
     const stageRect = stage.getBoundingClientRect()
     const linesRect = lines.getBoundingClientRect()
+    // Le calque visuel est décalé vers le haut pour rester dans la feuille :
+    // les nœuds réels sont la référence, pas le bord du calque.
+    const overflowY = parseFloat(getComputedStyle(lines).getPropertyValue('--paper-overflow')) || 0
     const rawColumn = (event.clientX - stageRect.left - L * GRID_LEFT) / columnWidth
     const column = clamp(Math.round(rawColumn), 0, WRITER_COLS - 1)
     const viewLine = clamp(activeLineIndex - Math.round(scroll), 0, Math.max(0, lineCount - 1))
@@ -654,8 +657,15 @@ const PaperScene = forwardRef(function PaperScene({
     let bestDistance = Infinity
     candidates.forEach((index) => {
       if (index < 0 || index >= lineCount) return
-      const { step, bottom } = lineMetrics(index, activeLineIndex, scroll, nearStep, farStep)
-      const centerY = linesRect.bottom - bottom - step / 2
+      const node = lines.querySelector(`[data-line-index="${index}"]`)
+      let centerY
+      if (node) {
+        const box = node.getBoundingClientRect()
+        centerY = box.top + box.height / 2
+      } else {
+        const { step, bottom } = lineMetrics(index, activeLineIndex, scroll, nearStep, farStep)
+        centerY = linesRect.bottom - overflowY - bottom - step / 2
+      }
       const difference = Math.abs(centerY - event.clientY)
       if (difference < bestDistance) {
         bestDistance = difference
@@ -737,35 +747,41 @@ const PaperScene = forwardRef(function PaperScene({
 
       {/* Le texte est un calque au-dessus du chariot : la pointe en T et la
           lumière passent derrière les lettres, même pendant la frappe. */}
-      <div ref={linesRef} className="paper-lines">
-        <ContextLines
-          lines={contextLines}
-          activeLineIndex={activeLineIndex}
-          scroll={scroll}
-          seed={seed}
-          inkColor={inkColor}
-          nearStep={nearStep}
-          farStep={farStep}
-        />
-        {stickers.map((sticker, index) => (
-          <Sticker
-            key={`${index}-${sticker.ligne}-${sticker.id}`}
-            sticker={sticker}
-            index={index}
+      <div
+        ref={linesRef}
+        className="paper-lines"
+        style={{ '--paper-overflow': `${((H || 844) * 0.023 + L * 0.0875).toFixed(2)}px` }}
+      >
+        <div className="paper-lines-inner">
+          <ContextLines
+            lines={contextLines}
             activeLineIndex={activeLineIndex}
             scroll={scroll}
+            seed={seed}
+            inkColor={inkColor}
             nearStep={nearStep}
             farStep={farStep}
-            lit={stickerIsLit(sticker.ligne)}
-            onRemove={onRemoveSticker}
-            onKeepFocus={onKeepFocus}
           />
-        ))}
-        <CurrentLine
-          ref={currentLineRef}
-          inkColor={inkColor}
-          bottom={lineMetrics(activeLineIndex, activeLineIndex, scroll, nearStep, farStep).bottom}
-        />
+          {stickers.map((sticker, index) => (
+            <Sticker
+              key={`${index}-${sticker.ligne}-${sticker.id}`}
+              sticker={sticker}
+              index={index}
+              activeLineIndex={activeLineIndex}
+              scroll={scroll}
+              nearStep={nearStep}
+              farStep={farStep}
+              lit={stickerIsLit(sticker.ligne)}
+              onRemove={onRemoveSticker}
+              onKeepFocus={onKeepFocus}
+            />
+          ))}
+          <CurrentLine
+            ref={currentLineRef}
+            inkColor={inkColor}
+            bottom={lineMetrics(activeLineIndex, activeLineIndex, scroll, nearStep, farStep).bottom}
+          />
+        </div>
       </div>
 
       {/* Haut du cylindre : le texte glisse derrière ce rabat au lieu de
