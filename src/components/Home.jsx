@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { excerpt, formatDate } from '../text.js'
 import { APP_NAME, getSticker } from '../data.js'
 import StickerPicker from './StickerPicker.jsx'
+import ConfirmSheet from './ConfirmSheet.jsx'
+import TrashSheet from './TrashSheet.jsx'
+
+const monthFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' })
 
 // Ornements dessinés à la main : aucune police d’icônes ni emoji Unicode.
 function BotanicalSprig({ className = '' }) {
@@ -38,6 +42,44 @@ function SearchIcon() {
   )
 }
 
+// Icône conservée pour le futur point d’entrée du mode sélection.
+function SelectIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.6" y="3.6" width="8" height="8" rx="1.4" />
+      <rect x="12.4" y="12.4" width="8" height="8" rx="1.4" />
+      <path d="m5.4 15.2 2.3 2.3 4.3-4.8" />
+    </svg>
+  )
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.4" y="5.2" width="17.2" height="15.4" rx="1.6" />
+      <path d="M3.4 9.8h17.2M8 3.4v3.4M16 3.4v3.4" />
+      <path d="M7.4 13.4h2.2M14.4 13.4h2.2M7.4 17h2.2" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.6 7h14.8M9.4 7V4.6h5.2V7M6.4 7l.8 12.4h9.6L17.6 7" />
+      <path d="M10 10.6v5.4M14 10.6v5.4" />
+    </svg>
+  )
+}
+
+function ChevronIcon() {
+  return (
+    <svg className="month-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
 function fold(value) {
   return String(value ?? '')
     .toLocaleLowerCase()
@@ -63,18 +105,36 @@ function ArchiveIllustration() {
   )
 }
 
-export default function Home({ notes, settings, onOpen, onCreate, onRename, onDelete, onSign }) {
+export default function Home({
+  notes, settings, onOpen, onCreate, onRename, onDelete, onDeleteMany, onSign,
+  trash, onOpenTrash, onRestoreTrashed, onPurgeTrashed, onEmptyTrash,
+}) {
   const [menuId, setMenuId] = useState(null)
   const [renamingId, setRenamingId] = useState(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [signingId, setSigningId] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [collapsedMonths, setCollapsedMonths] = useState([])
+  const [trashOpen, setTrashOpen] = useState(false)
+  const [trashConfirm, setTrashConfirm] = useState(null)
 
   const needle = fold(query).trim()
   const visibleNotes = needle
     ? notes.filter((note) => fold(`${note.title} ${note.text}`).includes(needle))
     : notes
+  const visibleIds = visibleNotes.map((note) => note.id)
+  const monthGroups = new Map()
+  for (const note of visibleNotes) {
+    const date = new Date(note.updatedAt)
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    if (!monthGroups.has(key)) monthGroups.set(key, { key, label: monthFormatter.format(date), notes: [] })
+    monthGroups.get(key).notes.push(note)
+  }
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id))
 
   function toggleSearch() {
     if (searchOpen) setQuery('')
@@ -84,6 +144,70 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
   function clearSearch() {
     setQuery('')
     setSearchOpen(false)
+  }
+
+  function startSelection() {
+    setSearchOpen(false)
+    setQuery('')
+    setMenuId(null)
+    setRenamingId(null)
+    setSelectedIds([])
+    setSelectMode(true)
+  }
+
+  function exitSelection() {
+    setSelectMode(false)
+    setSelectedIds([])
+    setConfirmOpen(false)
+  }
+
+  function toggleMonth(key) {
+    setCollapsedMonths((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  }
+
+  function toggleAll() {
+    setSelectedIds((current) => allSelected
+      ? current.filter((id) => !visibleIds.includes(id))
+      : [...new Set([...current, ...visibleIds])])
+  }
+
+  function confirmDeleteMany() {
+    setConfirmOpen(false)
+    onDeleteMany?.(selectedIds)
+    exitSelection()
+  }
+
+  function openTrash() {
+    onOpenTrash?.()
+    setTrashOpen(true)
+  }
+
+  function askPurge(note) {
+    setTrashConfirm({
+      title: 'Supprimer définitivement ?',
+      description: `« ${note.title || 'Sans titre'} » sera effacée sans retour possible.`,
+      confirmLabel: 'Supprimer définitivement',
+      onConfirm: () => {
+        onPurgeTrashed?.([note.id])
+        setTrashConfirm(null)
+      },
+    })
+  }
+
+  function askEmptyTrash() {
+    setTrashConfirm({
+      title: 'Vider la corbeille ?',
+      description: 'Toutes les notes supprimées seront effacées définitivement.',
+      confirmLabel: 'Tout supprimer',
+      onConfirm: () => {
+        onEmptyTrash?.()
+        setTrashConfirm(null)
+      },
+    })
   }
 
   function startRename(note) {
@@ -112,23 +236,59 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
     <main className="screen home-screen">
       <header className="app-header">
         <img className="brand-logo header-logo" src="/logo-confesse-moi.png" alt="" aria-hidden="true" />
-        <div>
-          <h1>{APP_NAME}</h1>
-          <p>{notes.length ? `${notes.length} ${notes.length > 1 ? 'confessions' : 'confession'}` : 'Tes pages, à l’abri.'}</p>
-        </div>
-        <BotanicalSprig className="home-sprig" />
-        <button
-          type="button"
-          className="icon-button home-search-button"
-          onClick={toggleSearch}
-          aria-label={searchOpen ? 'Fermer la recherche' : 'Rechercher une note'}
-          aria-expanded={searchOpen}
-        >
-          <SearchIcon />
-        </button>
+        {selectMode ? (
+          <div>
+            <h1>Sélection</h1>
+            <p aria-live="polite">
+              {selectedIds.length} {selectedIds.length > 1 ? 'notes sélectionnées' : 'note sélectionnée'}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <h1>{APP_NAME}</h1>
+            <p>{notes.length ? `${notes.length} ${notes.length > 1 ? 'confessions' : 'confession'}` : 'Tes pages, à l’abri.'}</p>
+          </div>
+        )}
+        {!selectMode && <BotanicalSprig className="home-sprig" />}
+        {selectMode ? (
+          <button
+            type="button"
+            className="icon-button home-search-button"
+            onClick={exitSelection}
+            aria-label="Annuler la sélection"
+          >
+            ✕
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="icon-button home-search-button"
+              onClick={toggleSearch}
+              aria-label={searchOpen ? 'Fermer la recherche' : 'Rechercher une note'}
+              aria-expanded={searchOpen}
+            >
+              <SearchIcon />
+            </button>
+          </>
+        )}
       </header>
 
-      {searchOpen && (
+      {selectMode ? (
+        <div className="home-select-bar">
+          <button type="button" className="select-all-button" onClick={toggleAll}>
+            {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+          </button>
+          <button
+            type="button"
+            className="select-delete-button"
+            disabled={selectedIds.length === 0}
+            onClick={() => setConfirmOpen(true)}
+          >
+            Supprimer
+          </button>
+        </div>
+      ) : searchOpen && (
         <div className="home-search">
           <input
             autoFocus
@@ -163,75 +323,127 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
             <BotanicalSprig className="divider-sprig" />
             <span>{needle ? 'Résultats' : 'Archives'}</span>
           </div>
-          <div className="note-list">
-          {visibleNotes.map((note, index) => (
-            <article className="note-card" key={note.id} onClick={() => renamingId !== note.id && onOpen(note.id)}>
-              <span className="note-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-              {renamingId === note.id ? (
-                <div className="rename-row" onClick={(event) => event.stopPropagation()}>
-                  <input
-                    autoFocus
-                    value={draftTitle}
-                    onChange={(event) => setDraftTitle(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') commitRename(note.id)
-                      if (event.key === 'Escape') setRenamingId(null)
-                    }}
-                    aria-label="Nouveau titre"
-                  />
-                  <button type="button" className="primary-button small" onClick={() => commitRename(note.id)}>OK</button>
-                </div>
-              ) : (
-                <>
-                  <div className="note-card-top">
-                    <div className="note-title-group">
-                      <h2>{note.title || 'Sans titre'}</h2>
-                      {note.signature && (
-                        <button
-                          type="button"
-                          className="note-signature"
-                          onClick={(event) => { event.stopPropagation(); startSigning(note.id) }}
-                          aria-label="Changer la signature"
-                          title={`Signée : ${getSticker(note.signature).label}`}
+          {[...monthGroups.values()].map((group) => {
+            const collapsed = collapsedMonths.includes(group.key)
+            return (
+              <section className="month-group" key={group.key}>
+                <button
+                  type="button"
+                  className="month-heading"
+                  onClick={() => toggleMonth(group.key)}
+                  aria-expanded={!collapsed}
+                  aria-controls={`month-${group.key}`}
+                >
+                  <CalendarIcon />
+                  <span className="month-label">{group.label}</span>
+                  <span className="month-count">
+                    {group.notes.length} {group.notes.length > 1 ? 'pages' : 'page'}
+                  </span>
+                  <ChevronIcon />
+                </button>
+                <div className="note-list" id={`month-${group.key}`} hidden={collapsed}>
+                    {group.notes.map((note) => {
+                      const selected = selectedIds.includes(note.id)
+                      return (
+                        <article
+                          className={`note-card${selectMode ? ' selectable' : ''}${selected ? ' selected' : ''}${menuId === note.id ? ' menu-open' : ''}`}
+                          key={note.id}
+                          onClick={() => {
+                            if (renamingId === note.id) return
+                            if (selectMode) toggleSelect(note.id)
+                            else onOpen(note.id)
+                          }}
+                          role={selectMode ? 'checkbox' : undefined}
+                          aria-checked={selectMode ? selected : undefined}
+                          tabIndex={selectMode ? 0 : undefined}
+                          onKeyDown={selectMode ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              toggleSelect(note.id)
+                            }
+                          } : undefined}
                         >
-                          <img src={getSticker(note.signature).image} alt="" draggable="false" />
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Options de ${note.title || 'Sans titre'}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setMenuId(menuId === note.id ? null : note.id)
-                      }}
-                    >
-                      <NotesIcon />
-                    </button>
-                  </div>
-                  <p className="note-excerpt">{excerpt(note.text) || 'Page encore blanche…'}</p>
-                  <time dateTime={new Date(note.updatedAt).toISOString()}>{formatDate(note.updatedAt)}</time>
-                  {menuId === note.id && (
-                    <div className="note-menu" onClick={(event) => event.stopPropagation()}>
-                      <button type="button" onClick={() => onOpen(note.id)}>Ouvrir</button>
-                      <button type="button" onClick={() => startRename(note)}>Renommer</button>
-                      <button type="button" onClick={() => startSigning(note.id)}>
-                        {note.signature ? 'Changer la signature' : 'Signer la note'}
-                      </button>
-                      {note.signature && (
-                        <button type="button" onClick={() => { setMenuId(null); onSign?.(note.id, null) }}>
-                          Retirer la signature
-                        </button>
-                      )}
-                      <button type="button" className="danger" onClick={() => { setMenuId(null); onDelete(note.id) }}>Supprimer</button>
-                    </div>
-                  )}
-                </>
-              )}
-            </article>
-          ))}
-          </div>
+                          {selectMode && (
+                            <span className="note-select-slot" aria-hidden="true">
+                              <span className={`note-check${selected ? ' checked' : ''}`}>{selected ? '✓' : ''}</span>
+                            </span>
+                          )}
+                          {renamingId === note.id ? (
+                            <div className="rename-row" onClick={(event) => event.stopPropagation()}>
+                              <input
+                                autoFocus
+                                value={draftTitle}
+                                onChange={(event) => setDraftTitle(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') commitRename(note.id)
+                                  if (event.key === 'Escape') setRenamingId(null)
+                                }}
+                                aria-label="Nouveau titre"
+                              />
+                              <button type="button" className="primary-button small" onClick={() => commitRename(note.id)}>OK</button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="note-card-top">
+                                <div className="note-title-group">
+                                  <h2>{note.title || 'Sans titre'}</h2>
+                                  {note.signature && (
+                                    <button
+                                      type="button"
+                                      className="note-signature"
+                                      disabled={selectMode}
+                                      onClick={(event) => { event.stopPropagation(); if (!selectMode) startSigning(note.id) }}
+                                      aria-label="Changer la signature"
+                                      title={`Signée : ${getSticker(note.signature).label}`}
+                                    >
+                                      <img src={getSticker(note.signature).image} alt="" draggable="false" />
+                                    </button>
+                                  )}
+                                </div>
+                                {!selectMode && (
+                                  <button
+                                    type="button"
+                                    className="icon-button"
+                                    aria-label={`Options de ${note.title || 'Sans titre'}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setMenuId(menuId === note.id ? null : note.id)
+                                    }}
+                                  >
+                                    <NotesIcon />
+                                  </button>
+                                )}
+                              </div>
+                              <p className="note-excerpt">{excerpt(note.text) || 'Page encore blanche…'}</p>
+                              <time dateTime={new Date(note.updatedAt).toISOString()}>{formatDate(note.updatedAt)}</time>
+                              {!selectMode && menuId === note.id && (
+                                <div
+                                  className="note-menu"
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <button type="button" onClick={() => onOpen(note.id)}>Ouvrir</button>
+                                  <button type="button" onClick={() => startRename(note)}>Renommer</button>
+                                  <button type="button" onClick={() => startSigning(note.id)}>
+                                    {note.signature ? 'Changer la signature' : 'Signer la note'}
+                                  </button>
+                                  {note.signature && (
+                                    <button type="button" onClick={() => { setMenuId(null); onSign?.(note.id, null) }}>
+                                      Retirer la signature
+                                    </button>
+                                  )}
+                                  <button type="button" className="danger" onClick={() => { setMenuId(null); onDelete(note.id) }}>Supprimer</button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </article>
+                      )
+                    })}
+                </div>
+              </section>
+            )
+          })}
         </>
       )}
       {signingId && (
@@ -242,6 +454,32 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
           onClose={() => setSigningId(null)}
         />
       )}
+      {confirmOpen && (
+        <ConfirmSheet
+          title={`Supprimer ${selectedIds.length} ${selectedIds.length > 1 ? 'notes' : 'note'} ?`}
+          description="Les pages choisies iront dans la corbeille et pourront être restaurées pendant 7 jours."
+          confirmLabel={`Supprimer ${selectedIds.length} ${selectedIds.length > 1 ? 'notes' : 'note'}`}
+          onConfirm={confirmDeleteMany}
+          onClose={() => setConfirmOpen(false)}
+        />
+      )}
+      {trashOpen && (
+        <TrashSheet
+          notes={trash ?? []}
+          confirmOpen={Boolean(trashConfirm)}
+          onRestore={(id) => onRestoreTrashed?.([id])}
+          onPurge={askPurge}
+          onEmpty={askEmptyTrash}
+          onClose={() => setTrashOpen(false)}
+        />
+      )}
+      {trashConfirm && (
+        <ConfirmSheet {...trashConfirm} onClose={() => setTrashConfirm(null)} />
+      )}
+      <button type="button" className="home-trash-link" onClick={openTrash}>
+        <TrashIcon />
+        Corbeille
+      </button>
       <p className="home-footer">Rien ne quitte cet appareil.</p>
     </main>
   )

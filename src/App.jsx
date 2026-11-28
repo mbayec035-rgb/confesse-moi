@@ -4,13 +4,28 @@ import Editor from './components/Editor.jsx'
 import Home from './components/Home.jsx'
 import Settings from './components/Settings.jsx'
 import { APP_NAME, DEFAULT_SETTINGS } from './data.js'
-import { deleteNote, exportBackup, importBackup, initStorage, listNotes, loadSettings, saveNote, saveSettings } from './db.js'
+import {
+  deleteNote,
+  deleteNotes,
+  exportBackup,
+  importBackup,
+  initStorage,
+  listNotes,
+  listTrashedNotes,
+  loadSettings,
+  purgeExpiredTrash,
+  purgeNotes,
+  restoreNotes,
+  saveNote,
+  saveSettings,
+} from './db.js'
 import { makeId } from './text.js'
 import { playSound, unlockAudio } from './sounds.js'
 
 export default function App() {
   const [tab, setTab] = useState('accueil')
   const [notes, setNotes] = useState([])
+  const [trash, setTrash] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [activeId, setActiveId] = useState(null)
   const [ready, setReady] = useState(false)
@@ -24,9 +39,13 @@ export default function App() {
       if (cancelled) return
       setStorageReady(ok)
       try {
-        const [savedNotes, savedSettings] = await Promise.all([listNotes(), loadSettings()])
+        await purgeExpiredTrash()
+        const [savedNotes, trashedNotes, savedSettings] = await Promise.all([
+          listNotes(), listTrashedNotes(), loadSettings(),
+        ])
         if (cancelled) return
         setNotes(savedNotes)
+        setTrash(trashedNotes)
         setSettings(savedSettings)
       } catch (error) {
         console.warn('Chargement impossible :', error)
@@ -66,10 +85,59 @@ export default function App() {
   }
 
   function removeNote(id) {
+    const moved = notes.find((note) => note.id === id)
+    if (!moved) return
     setNotes((current) => current.filter((note) => note.id !== id))
+    setTrash((current) => [{ ...moved, deletedAt: Date.now() }, ...current])
     deleteNote(id).catch(() => setToast('Suppression impossible.'))
+    setToast('Note envoyée à la corbeille.')
     setActiveId(null)
     setTab('accueil')
+  }
+
+  function removeNotes(ids) {
+    if (!ids.length) return
+    const removed = new Set(ids)
+    const now = Date.now()
+    const moved = notes.filter((note) => removed.has(note.id)).map((note) => ({ ...note, deletedAt: now }))
+    setNotes((current) => current.filter((note) => !removed.has(note.id)))
+    setTrash((current) => [...moved, ...current])
+    deleteNotes(ids).catch(() => setToast('Suppression impossible.'))
+    setActiveId(null)
+    setToast(`${ids.length} ${ids.length > 1 ? 'notes envoyées' : 'note envoyée'} à la corbeille.`)
+  }
+
+  async function refreshTrash() {
+    try {
+      const purged = await purgeExpiredTrash()
+      if (purged) setTrash(await listTrashedNotes())
+    } catch {
+      // la corbeille affichée reste celle déjà chargée
+    }
+  }
+
+  function restoreTrashed(ids) {
+    if (!ids.length) return
+    const restored = trash.filter((note) => ids.includes(note.id)).map(({ deletedAt, ...note }) => note)
+    setTrash((current) => current.filter((note) => !ids.includes(note.id)))
+    setNotes((current) => [...restored, ...current].sort((a, b) => b.updatedAt - a.updatedAt))
+    restoreNotes(ids).catch(() => setToast('Restauration impossible.'))
+    setToast(`${ids.length} ${ids.length > 1 ? 'notes restaurées.' : 'note restaurée.'}`)
+  }
+
+  function purgeTrashed(ids) {
+    if (!ids.length) return
+    setTrash((current) => current.filter((note) => !ids.includes(note.id)))
+    purgeNotes(ids).catch(() => setToast('Suppression définitive impossible.'))
+    setToast(`${ids.length} ${ids.length > 1 ? 'notes supprimées' : 'note supprimée'} définitivement.`)
+  }
+
+  function emptyTrash() {
+    const ids = trash.map((note) => note.id)
+    if (!ids.length) return
+    setTrash([])
+    purgeNotes(ids).catch(() => setToast('Vidage impossible.'))
+    setToast('Corbeille vidée.')
   }
 
   function changeSettings(patch) {
@@ -116,8 +184,12 @@ export default function App() {
 
   async function handleImport(data) {
     await importBackup(data)
-    const [savedNotes, savedSettings] = await Promise.all([listNotes(), loadSettings()])
+    await purgeExpiredTrash()
+    const [savedNotes, trashedNotes, savedSettings] = await Promise.all([
+      listNotes(), listTrashedNotes(), loadSettings(),
+    ])
     setNotes(savedNotes)
+    setTrash(trashedNotes)
     setSettings(savedSettings)
     setActiveId(null)
     setTab('accueil')
@@ -142,7 +214,13 @@ export default function App() {
               onOpen={(id) => { setActiveId(id); setTab('ecrire') }}
               onRename={(id, title) => patchNote(id, { title })}
               onDelete={removeNote}
+              onDeleteMany={removeNotes}
               onSign={(id, stickerId) => patchNote(id, { signature: stickerId })}
+              trash={trash}
+              onOpenTrash={refreshTrash}
+              onRestoreTrashed={restoreTrashed}
+              onPurgeTrashed={purgeTrashed}
+              onEmptyTrash={emptyTrash}
             />
           )}
           {tab === 'ecrire' && activeNote && (

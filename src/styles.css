@@ -665,6 +665,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sheet-note.selected { border-color: var(--accent); }
 .sheet-note small { color: var(--muted); font-size: 12px; }
 .sheet-note time { color: var(--muted); font-size: 11px; }
+.trash-list { display: flex; flex-direction: column; gap: 10px; }
+.trash-note { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.trash-note strong { font-size: 14px; }
+.trash-note small, .trash-note time { color: var(--muted); font-size: 12px; }
+.trash-actions { display: flex; gap: 8px; margin-top: 8px; }
+.trash-actions button { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 12px; }
+.trash-actions button.danger { color: var(--danger); }
+.trash-empty { margin: 8px 0 4px; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* Feuilles de l’écriture et de l’accueil : mêmes thèmes que le Studio.
    La scène de frappe et les feuilles du Studio sont intactes. */
@@ -728,6 +736,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 :is(.writer-screen, .home-screen) .sheet .check-mark,
 :is(.writer-screen, .home-screen) .sheet .control-icon { color: var(--sheet-accent); }
 :is(.writer-screen, .home-screen) .sheet .sheet-action.danger { color: var(--sheet-danger); }
+:is(.writer-screen, .home-screen) .sheet .trash-note,
+:is(.writer-screen, .home-screen) .sheet .trash-actions button {
+  background: var(--sheet-surface);
+  color: var(--sheet-ink);
+  border-color: var(--sheet-line);
+}
+:is(.writer-screen, .home-screen) .sheet .trash-note small,
+:is(.writer-screen, .home-screen) .sheet .trash-note time,
+:is(.writer-screen, .home-screen) .sheet .trash-empty { color: var(--sheet-muted); }
+:is(.writer-screen, .home-screen) .sheet .trash-actions button.danger { color: var(--sheet-danger); }
 :is(.writer-screen, .home-screen) .sheet.sticker-sheet .sheet-heading { margin-bottom: 10px; }
 :is(.writer-screen, .home-screen) .sheet.sticker-sheet .sheet-heading p { font-size: 11px; }
 
@@ -850,6 +868,45 @@ html:has(.home-screen),
 .screen.home-screen .home-search input::placeholder { color: var(--home-muted); opacity: .75; }
 .screen.home-screen .home-search .icon-button { min-width: 28px; min-height: 28px; padding: 2px; font-size: 13px; }
 
+/* Sélection multiple d’archives */
+/* Le point d’entrée du mode sélection sera replacé ici plus tard. */
+.screen.home-screen .home-select-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin: -12px 0 24px; padding: 7px 10px;
+  border: 1px solid var(--home-line);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .09);
+}
+.screen.home-screen .home-select-bar button {
+  padding: 6px 2px;
+  color: var(--home-ink);
+  background: transparent; border: 0;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+}
+.screen.home-screen .home-select-bar .select-all-button { flex: 1; text-align: left; color: var(--home-accent); }
+.screen.home-screen .home-select-bar .select-delete-button {
+  padding: 7px 14px;
+  border: 1px solid rgba(214, 160, 147, .5);
+  border-radius: 2px;
+  color: #d6a093;
+}
+.screen.home-screen .home-select-bar .select-delete-button:disabled { opacity: .4; cursor: default; }
+.screen.home-screen .note-card.selectable { cursor: pointer; }
+.screen.home-screen .note-card.selectable:focus-visible { outline: 1px solid var(--home-accent); outline-offset: -2px; }
+/* La carte qui porte le menu doit passer devant les cartes suivantes. */
+.screen.home-screen .note-card.menu-open { z-index: 4; }
+.screen.home-screen .note-card.selected { background: rgba(195, 193, 155, .09); }
+.screen.home-screen .note-card.selected .note-select-slot { border-right-color: var(--home-accent); }
+.note-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: 1px solid var(--home-accent);
+  border-radius: 3px;
+  color: transparent; font-size: 14px; line-height: 1;
+}
+.note-check.checked { background: var(--home-accent); color: #26241f; }
+
 .screen.home-screen .archive-divider {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   margin: 0 0 16px;
@@ -866,13 +923,33 @@ html:has(.home-screen),
 }
 .screen.home-screen .divider-sprig { width: 20px; height: 20px; flex: none; color: var(--home-accent); }
 
+/* En-têtes de mois : l’icône et le libellé suffisent à repérer l’archive. */
+.screen.home-screen .month-group { margin-bottom: 18px; }
+.screen.home-screen .month-heading {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 2px; margin-bottom: 2px;
+  border: 0; border-bottom: 1px solid var(--home-line);
+  background: transparent;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  text-align: left;
+}
+.screen.home-screen .month-heading:hover { color: var(--home-ink); }
+.screen.home-screen .month-heading svg { width: 16px; height: 16px; flex: none; color: var(--home-accent); }
+.screen.home-screen .month-label { color: var(--home-ink); font-weight: 600; }
+.screen.home-screen .month-count { margin-left: auto; font-size: 10px; letter-spacing: .1em; }
+.screen.home-screen .month-chevron { transition: transform 180ms ease; }
+.screen.home-screen .month-heading[aria-expanded="false"] .month-chevron { transform: rotate(-90deg); }
+
 .screen.home-screen .note-list {
   display: flex; flex-direction: column; gap: 0;
-  border-top: 1px solid var(--home-line);
 }
+.screen.home-screen .note-list[hidden] { display: none; }
 .screen.home-screen .note-card {
+  --note-column: 1;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   column-gap: 14px;
   position: relative;
   padding: 18px 2px;
@@ -885,6 +962,11 @@ html:has(.home-screen),
   animation: home-card-in 340ms ease both;
   transition: background 180ms ease;
 }
+.screen.home-screen .note-card.selectable {
+  --note-column: 2;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 10px;
+}
 .screen.home-screen .note-card:hover { background: rgba(232, 231, 214, .035); }
 .screen.home-screen .note-card:nth-child(2) { animation-delay: 45ms; }
 .screen.home-screen .note-card:nth-child(3) { animation-delay: 90ms; }
@@ -894,20 +976,16 @@ html:has(.home-screen),
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
-.screen.home-screen .note-index {
+.screen.home-screen .note-select-slot {
   grid-column: 1; grid-row: 1 / span 3;
   align-self: start;
-  padding-right: 11px;
+  padding-right: 8px;
   border-right: 1px solid var(--home-line);
-  color: var(--home-accent);
-  font-family: "Courier Prime", "Courier New", monospace;
-  font-size: 11px;
-  letter-spacing: .12em;
 }
 .screen.home-screen .note-card-top,
 .screen.home-screen .note-excerpt,
 .screen.home-screen .note-card time,
-.screen.home-screen .rename-row { grid-column: 2; min-width: 0; }
+.screen.home-screen .rename-row { grid-column: var(--note-column); min-width: 0; }
 .screen.home-screen .note-card-top { gap: 10px; align-items: flex-start; }
 .screen.home-screen .note-title-group {
   display: flex; align-items: center; gap: 8px;
@@ -1025,8 +1103,18 @@ html:has(.home-screen),
   font-size: 12px;
   line-height: 1.65;
 }
+.screen.home-screen .home-trash-link {
+  display: flex; align-items: center; gap: 7px;
+  width: max-content; margin: 30px auto 0; padding: 6px 2px;
+  border: 0; background: transparent;
+  color: var(--home-muted);
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+}
+.screen.home-screen .home-trash-link:hover { color: var(--home-ink); }
+.screen.home-screen .home-trash-link svg { width: 16px; height: 16px; color: var(--home-accent); }
 .screen.home-screen .home-footer {
-  margin: 30px 0 0;
+  margin: 16px 0 0;
   padding-top: 15px;
   border-top: 1px solid var(--home-line);
   color: var(--home-muted);
