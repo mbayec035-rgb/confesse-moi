@@ -185,11 +185,14 @@ button { cursor: pointer; }
 }
 .app-header h1 { font-size: 25px; margin: 0; }
 .app-header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.header-capsule {
-  width: 44px; height: 20px; border-radius: 10px; background: var(--accent);
-  transform: rotate(-28deg); flex: none; box-shadow: 0 3px 8px rgba(43,45,49,.18);
+/* Logo : même fichier partout, le cadre suit les tokens du thème courant
+   (--line est remappé sur les thèmes Accueil / Studio). */
+.brand-logo {
+  display: block; flex: none;
+  width: 44px; height: 44px; object-fit: cover;
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(43,45,49,.18);
 }
-.header-capsule.large { width: 68px; height: 30px; border-radius: 15px; }
 
 .primary-button { border: 0; background: var(--anthracite); color: #fff; border-radius: 12px; padding: 12px 18px; font-weight: 600; }
 .primary-button.small { padding: 8px 12px; font-size: 13px; }
@@ -739,8 +742,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .nav-tab-add span { display: none; }
 
 .toast { position: fixed; left: 50%; bottom: calc(80px + var(--keyboard-offset)); transform: translateX(-50%); z-index: 50; background: rgba(28,30,34,.94); color: #fff; border-radius: 22px; padding: 10px 16px; font-size: 13px; white-space: nowrap; }
-.splash { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
-.splash h1 { font-family: "Special Elite", monospace; font-weight: 400; font-size: 27px; margin: 6px 0 0; }
+.splash { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.splash .brand-logo {
+  width: 112px; height: 112px; border-radius: 26px;
+  border-color: rgba(43,45,49,.14);
+  box-shadow: 0 14px 34px rgba(43,45,49,.24);
+}
+.app-night .splash .brand-logo { border-color: rgba(255,255,255,.18); }
+.splash h1 { font-family: "Special Elite", monospace; font-weight: 400; font-size: 27px; margin: 2px 0 0; }
 .splash p { color: var(--muted); font-size: 14px; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -806,13 +815,10 @@ html:has(.home-screen),
   letter-spacing: .18em;
   text-transform: uppercase;
 }
-.screen.home-screen .header-capsule {
-  width: 38px; height: 16px;
-  border: 1px solid rgba(232, 231, 214, .24);
-  border-radius: 8px 3px 3px 8px;
-  background: #74705b;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, .3);
-  transform: rotate(-24deg);
+.screen.home-screen .header-logo {
+  width: 40px; height: 40px; border-radius: 10px;
+  border-color: var(--home-line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
 }
 .screen.home-screen .home-sprig {
   width: 46px; height: 46px;
@@ -1163,6 +1169,10 @@ html:has(.settings-screen.lamp-on) { background: #e7e2d6; }
   margin-bottom: 26px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--studio-line);
+}
+.screen.settings-screen .studio-logo {
+  width: 38px; height: 38px; border-radius: 10px;
+  box-shadow: 0 2px 8px var(--studio-nav-shadow);
 }
 .screen.settings-screen .app-header h1 {
   margin: 0;

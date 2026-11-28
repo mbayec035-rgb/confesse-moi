@@ -64,6 +64,7 @@ export default function Settings({ settings, updateSettings, updateLamp, onExpor
   return (
     <main className={`screen settings-screen ${lampOn ? 'lamp-on' : 'lamp-off'}`}>
       <header className="app-header">
+        <img className="brand-logo studio-logo" src="/logo-confesse-moi.png" alt="" aria-hidden="true" />
         <h1>Studio</h1>
         <p>Réglages de la page, du ruban, de la lampe et du son.</p>
       </header>

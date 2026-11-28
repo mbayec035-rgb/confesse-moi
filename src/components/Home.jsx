@@ -111,7 +111,7 @@ export default function Home({ notes, settings, onOpen, onCreate, onRename, onDe
   return (
     <main className="screen home-screen">
       <header className="app-header">
-        <span className="header-capsule" aria-hidden="true" />
+        <img className="brand-logo header-logo" src="/logo-confesse-moi.png" alt="" aria-hidden="true" />
         <div>
           <h1>{APP_NAME}</h1>
           <p>{notes.length ? `${notes.length} ${notes.length > 1 ? 'confessions' : 'confession'}` : 'Tes pages, à l’abri.'}</p>

@@ -128,7 +128,7 @@ export default function App() {
     <div className={`app ${settings.mode === 'nuit' ? 'app-night' : ''}`} onPointerDown={unlockAudio}>
       {!ready ? (
         <div className="splash">
-          <span className="header-capsule large" aria-hidden="true" />
+          <img className="brand-logo splash-logo" src="/logo-confesse-moi.png" alt="" aria-hidden="true" />
           <h1>{APP_NAME}</h1>
           <p>Confie-toi, la page t’attend.</p>
         </div>
